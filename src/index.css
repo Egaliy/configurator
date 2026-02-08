@@ -4,6 +4,104 @@
 
 @layer base {
   body {
-    @apply bg-black text-white font-sans;
+    @apply bg-black text-white;
+    font-family: "Almarena Neue Regular", "Almarena Neue Regular Placeholder", sans-serif;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    line-height: 1.2em;
+    font-size: 14px;
+    font-feature-settings: "blwf" on, "cv09" on, "cv03" on, "cv04" on, "cv11" on;
+  }
+  
+  @media (min-width: 768px) {
+    body {
+      font-size: 16px;
+    }
+  }
+  
+  h1, .heading-large {
+    font-family: "Almarena Neue Regular", "Almarena Neue Regular Placeholder", sans-serif;
+    font-weight: 400;
+    letter-spacing: -0.03em;
+  }
+  
+  .price-large {
+    font-family: "Almarena Neue Regular", "Almarena Neue Regular Placeholder", sans-serif;
+    font-weight: 400;
+    letter-spacing: -0.03em;
+  }
+}
+
+@layer components {
+  input[type="checkbox"],
+  input[type="radio"] {
+    @apply appearance-none w-5 h-5 border border-white/30 rounded cursor-pointer;
+    background: transparent;
+    transition: all 0.15s;
+  }
+
+  input[type="checkbox"]:checked,
+  input[type="radio"]:checked {
+    @apply border-white/60;
+    background: transparent;
+    position: relative;
+  }
+
+  input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px;
+    height: 10px;
+    background: white;
+    border-radius: 2px;
+  }
+
+  input[type="radio"] {
+    @apply rounded-full;
+  }
+
+  input[type="radio"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px;
+    height: 10px;
+    background: white;
+    border-radius: 50%;
+  }
+
+  input[type="checkbox"]:hover,
+  input[type="radio"]:hover {
+    @apply border-white/50;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+}
+
+@layer utilities {
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-in-out;
   }
 }
