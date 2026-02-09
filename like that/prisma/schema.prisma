@@ -1,0 +1,96 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AdminUser {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ReviewSet {
+  id               String   @id @default(cuid())
+  title            String
+  slug             String   @unique // URL-friendly версия названия (английские буквы, цифры, дефисы)
+  description      String?
+  icon             String?  // Эмодзи как иконка проекта (как в Notion)
+  maxImagesToRate   Int?     // null = оценить все; число = показывать столько случайных
+  order            Int      @default(0) // Порядок в списке (перетаскивание)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  images      ImageAsset[]
+  links       ReviewLink[]
+  
+  @@map("review_sets")
+  @@index([slug])
+}
+
+model ImageAsset {
+  id          String    @id @default(cuid())
+  reviewSetId String
+  url         String?   // URL для внешних изображений (Pinterest и т.д.)
+  filePath    String?   // Путь к загруженному файлу
+  order       Int       @default(0)
+  title       String?
+  metadata    Json?     // Optional: width, height, etc.
+  createdAt   DateTime  @default(now())
+  
+  reviewSet   ReviewSet @relation(fields: [reviewSetId], references: [id], onDelete: Cascade)
+  ratings     Rating[]
+  
+  @@map("image_assets")
+  @@index([reviewSetId, order])
+}
+
+model ReviewLink {
+  id          String    @id @default(cuid())
+  token       String    @unique @default(cuid())
+  adminToken  String    @unique @default(cuid()) // Token для админа для просмотра результатов
+  reviewSetId String
+  maxSessions Int       @default(1)
+  allowResume Boolean   @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  reviewSet   ReviewSet @relation(fields: [reviewSetId], references: [id], onDelete: Cascade)
+  ratings     Rating[]
+  
+  @@map("review_links")
+  @@index([token])
+  @@index([adminToken])
+}
+
+model Rating {
+  id          String     @id @default(cuid())
+  reviewLinkId String
+  imageId     String
+  decision    String     // "like" | "dislike"
+  clientId    String     // ID клиента/заказчика (для различения нескольких заказчиков)
+  userName    String?    // Имя пользователя
+  timestamp   DateTime   @default(now())
+  orderIndex  Int        // Position in session
+  sessionId   String?    // Optional: for grouping events
+  deviceInfo  Json?      // Optional: UA, screen size, etc.
+  
+  reviewLink  ReviewLink @relation(fields: [reviewLinkId], references: [id], onDelete: Cascade)
+  image       ImageAsset @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  
+  @@map("ratings")
+  @@index([reviewLinkId])
+  @@index([imageId])
+  @@index([reviewLinkId, imageId, clientId])
+  @@unique([reviewLinkId, imageId, clientId]) // One rating per image per link per client
+}

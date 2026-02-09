@@ -1,0 +1,49 @@
+# Ручной запуск: залить Like That на VPS, перезагрузить nginx, собрать и запустить приложение.
+# Actions → Fix domain on VPS → Run workflow
+# Секреты: VPS_HOST, VPS_USER, VPS_PASSWORD (те же, что для Deploy to VPS)
+name: Fix domain on VPS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass rsync
+
+      - name: Upload Like That to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          if [ -z "$VPS_PASSWORD" ] || [ -z "$VPS_HOST" ]; then
+            echo "VPS_HOST and VPS_PASSWORD secrets are required."
+            exit 1
+          fi
+          export SSHPASS="$VPS_PASSWORD"
+          rsync -avz --delete \
+            -e "sshpass -e ssh -o StrictHostKeyChecking=no" \
+            --exclude 'node_modules' \
+            --exclude '.next' \
+            --exclude '.git' \
+            "like that/" "$VPS_USER@$VPS_HOST:/var/www/like-that/"
+
+      - name: Reload nginx and build Like That on server
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          export SSHPASS
+          sshpass -e ssh -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=20 -o ServerAliveCountMax=60 \
+            "$VPS_USER@$VPS_HOST" \
+            "systemctl reload nginx; cd /var/www/like-that && bash scripts/build-and-restart.sh"
