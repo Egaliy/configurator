@@ -11,6 +11,8 @@
 3. Дождитесь окончания (до ~10–15 минут). Workflow загрузит код Like That на сервер, перезагрузит nginx и соберёт/запустит приложение.
 4. Откройте https://app.ubernatural.io и https://app.ubernatural.io/admin.
 
+Если в логах **«Connection reset by peer»** или **«kex_exchange_identification»** — соединение сбрасывается со стороны сервера. Workflow теперь делает до 3 попыток. На VPS проверьте: не блокирует ли **fail2ban** IP GitHub Actions; в `/etc/ssh/sshd_config` не ограничен ли доступ по IP (AllowUsers и т.п.).
+
 ---
 
 ## Быстрая починка (одной сессией SSH)

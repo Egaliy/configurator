@@ -28,12 +28,21 @@ jobs:
             exit 1
           fi
           export SSHPASS="$VPS_PASSWORD"
-          rsync -avz --delete \
-            -e "sshpass -e ssh -o StrictHostKeyChecking=no" \
-            --exclude 'node_modules' \
-            --exclude '.next' \
-            --exclude '.git' \
-            "like that/" "$VPS_USER@$VPS_HOST:/var/www/like-that/"
+          SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=20"
+          for i in 1 2 3; do
+            echo "Upload attempt $i/3..."
+            if rsync -avz --delete \
+              -e "sshpass -e ssh $SSH_OPTS" \
+              --exclude 'node_modules' \
+              --exclude '.next' \
+              --exclude '.git' \
+              "like that/" "$VPS_USER@$VPS_HOST:/var/www/like-that/"; then
+              echo "Upload OK."
+              exit 0
+            fi
+            [ $i -lt 3 ] && echo "Retrying in 15s..." && sleep 15
+          done
+          exit 1
 
       - name: Reload nginx and build Like That on server
         env:
@@ -43,7 +52,14 @@ jobs:
           SSHPASS: ${{ secrets.VPS_PASSWORD }}
         run: |
           export SSHPASS
-          sshpass -e ssh -o StrictHostKeyChecking=no \
-            -o ServerAliveInterval=20 -o ServerAliveCountMax=60 \
-            "$VPS_USER@$VPS_HOST" \
-            "systemctl reload nginx; cd /var/www/like-that && bash scripts/build-and-restart.sh"
+          SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=120"
+          for i in 1 2 3; do
+            echo "SSH attempt $i/3..."
+            if sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" \
+              "systemctl reload nginx; cd /var/www/like-that && bash scripts/build-and-restart.sh"; then
+              echo "Done."
+              exit 0
+            fi
+            [ $i -lt 3 ] && echo "Retrying in 20s..." && sleep 20
+          done
+          exit 1
