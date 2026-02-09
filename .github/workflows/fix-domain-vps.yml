@@ -1,6 +1,6 @@
 # Ручной запуск: залить Like That на VPS, перезагрузить nginx, собрать и запустить приложение.
 # Actions → Fix domain on VPS → Run workflow
-# Секреты: VPS_HOST, VPS_USER, VPS_PASSWORD (те же, что для Deploy to VPS)
+# Секреты: VPS_HOST, VPS_USER, VPS_PASSWORD — в Repository secrets или в environment (например production)
 name: Fix domain on VPS
 
 on:
@@ -10,13 +10,8 @@ jobs:
   fix:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: production  # использует секреты из Environment "production", если заданы там
     steps:
-      - name: Require VPS secrets
-        run: |
-          if [ -z "${{ secrets.VPS_HOST }}" ] || [ -z "${{ secrets.VPS_PASSWORD }}" ]; then
-            echo "::error::Add repository secrets: VPS_HOST, VPS_USER, VPS_PASSWORD (Settings → Secrets and variables → Actions). Same as for Deploy to VPS."
-            exit 1
-          fi
       - name: Checkout
         uses: actions/checkout@v4
 
