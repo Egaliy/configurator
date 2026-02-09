@@ -71,9 +71,8 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
           SSHPASS: ${{ secrets.VPS_PASSWORD }}
-          SSL_EMAIL: ${{ secrets.SSL_EMAIL }}
         run: |
           export SSHPASS
-          EMAIL="${SSL_EMAIL:-admin@ubernatural.io}"
+          EMAIL="admin@ubernatural.io"
           sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=15 "$VPS_USER@$VPS_HOST" \
-            "apt-get update -qq && apt-get install -y -qq certbot python3-certbot-nginx >/dev/null 2>&1; certbot --nginx -d app.ubernatural.io --non-interactive --agree-tos -m $EMAIL --redirect 2>/dev/null || true; systemctl reload nginx 2>/dev/null || true"
+            "apt-get update -qq && apt-get install -y -qq certbot python3-certbot-nginx >/dev/null 2>&1; certbot --nginx -d app.ubernatural.io --non-interactive --agree-tos -m admin@ubernatural.io --redirect 2>/dev/null || true; systemctl reload nginx 2>/dev/null || true"

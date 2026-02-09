@@ -17,15 +17,45 @@
 
 ---
 
+## После перезагрузки сервера
+
+После перезагрузки VPS nginx и процессы в pm2 не запускаются автоматически (если не настроен `pm2 startup` и автозапуск для ботов). Зайдите по SSH и выполните:
+
+```bash
+ssh root@130.49.149.162
+
+# Nginx
+sudo systemctl start nginx
+
+# Like That (сайт)
+cd /var/www/like-that && pm2 restart like-that 2>/dev/null || pm2 start npm --name like-that -- start
+pm2 save
+
+# Ваши Telegram-боты (если они в pm2 — посмотрите имена: pm2 list)
+pm2 restart all
+# или по имени: pm2 restart bot1 && pm2 restart bot2
+pm2 save
+```
+
+Чтобы после следующих перезагрузок pm2 поднимался сам: `pm2 startup` — выполнить выведенную команду (один раз), затем `pm2 save`.
+
+---
+
 ## Быстрая починка (одной сессией SSH)
 
-Если SSH доступен с вашего Mac, выполните **в своём терминале**:
+Если SSH доступен с вашего Mac, выполните **в своём терминале** из корня репозитория:
+
+```bash
+./scripts/fix-domain-with-password.sh
+```
+
+Скрипт возьмёт пароль из `deploy.sh` (sshpass должен быть установлен: `brew install hudochenkov/sshpass/sshpass`). Либо вручную:
 
 ```bash
 ssh root@130.49.149.162 "systemctl reload nginx; cd /var/www/like-that && bash scripts/build-and-restart.sh"
 ```
 
-Или из корня репозитория: `./scripts/fix-domain-on-server.sh`
+Или без пароля в скрипте: `./scripts/fix-domain-on-server.sh` (нужен настроенный SSH-ключ).
 
 После успешного выполнения откройте https://app.ubernatural.io и https://app.ubernatural.io/admin (при необходимости Ctrl+Shift+R).
 

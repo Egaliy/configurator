@@ -11,15 +11,13 @@
 1. Зайдите в панель управления вашего VPS провайдера
 2. Найдите опцию **"Консоль"**, **"VNC"**, **"Web Console"** или **"Terminal"**
 3. Откройте консоль сервера
-4. Выполните команды:
+4. **Вбейте одну команду** (скопируйте целиком):
 
 ```bash
-systemctl start sshd
-systemctl enable sshd
-systemctl start nginx
-cd /var/www/like-that && pm2 restart like-that 2>/dev/null || pm2 start npm --name like-that -- start
-pm2 save
+systemctl start sshd && systemctl enable sshd && systemctl start nginx && cd /var/www/like-that 2>/dev/null && (pm2 restart like-that 2>/dev/null || pm2 start npm --name like-that -- start) && pm2 save && echo "Done"
 ```
+
+Эта команда запустит SSH, nginx и Like That одной строкой.
 
 ### Вариант 2: Скопировать готовый скрипт
 
