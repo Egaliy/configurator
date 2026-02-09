@@ -1,0 +1,53 @@
+name: Check VPS Server Status
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Check server status
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          export SSHPASS
+          SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=10"
+          
+          echo "=== PM2 ПРОЦЕССЫ ==="
+          sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" "pm2 list 2>/dev/null || echo 'pm2 не установлен или нет процессов'" || true
+          echo ""
+          
+          echo "=== SYSTEMD СЕРВИСЫ (nginx, node, etc) ==="
+          sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" "systemctl list-units --type=service --state=running --no-pager 2>/dev/null | grep -E 'nginx|node|pm2|telegram|bot' || echo 'нет подходящих сервисов'" || true
+          echo ""
+          
+          echo "=== ПРОЦЕССЫ (top 40 по памяти) ==="
+          sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" "ps aux --sort=-%mem 2>/dev/null | head -40 || ps aux 2>/dev/null | head -40" || true
+          echo ""
+          
+          echo "=== ПОРТЫ (слушающие) ==="
+          sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" "ss -tlnp 2>/dev/null | grep -E ':(80|443|3000|22|8080|9000)' || netstat -tlnp 2>/dev/null | grep -E ':(80|443|3000|22|8080|9000)' || echo 'не удалось проверить порты'" || true
+          echo ""
+          
+          echo "=== ФАЙЛЫ /var/www ==="
+          sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" "ls -lah /var/www/ 2>/dev/null || echo '/var/www не существует'" || true
+          echo ""
+          
+          echo "=== ФАЙЛЫ /var/www/like-that ==="
+          sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" "ls -lah /var/www/like-that/ 2>/dev/null | head -30 || echo '/var/www/like-that не существует'" || true
+          echo ""
+          
+          echo "=== NGINX СТАТУС ==="
+          sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" "systemctl status nginx --no-pager -l 2>/dev/null | head -20 || echo 'nginx статус недоступен'" || true
+          echo ""
+          
+          echo "=== PM2 ЛОГИ (последние 30 строк) ==="
+          sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" "pm2 logs --lines 30 --nostream 2>/dev/null || echo 'pm2 логи недоступны'" || true
