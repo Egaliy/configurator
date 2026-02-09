@@ -42,6 +42,7 @@ jobs:
             fi
             [ $i -lt 3 ] && echo "Retrying in 15s..." && sleep 15
           done
+          echo "::error::SSH from GitHub to VPS failed (timeout). VPS may block GitHub IPs — check firewall, fail2ban; or run fix via SSH from your Mac (see docs/TROUBLESHOOTING_DOMAIN.md)."
           exit 1
 
       - name: Reload nginx and build Like That on server

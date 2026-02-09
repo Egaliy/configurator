@@ -11,7 +11,9 @@
 3. Дождитесь окончания (до ~10–15 минут). Workflow загрузит код Like That на сервер, перезагрузит nginx и соберёт/запустит приложение.
 4. Откройте https://app.ubernatural.io и https://app.ubernatural.io/admin.
 
-Если в логах **«Connection reset by peer»** или **«kex_exchange_identification»** — соединение сбрасывается со стороны сервера. Workflow теперь делает до 3 попыток. На VPS проверьте: не блокирует ли **fail2ban** IP GitHub Actions; в `/etc/ssh/sshd_config` не ограничен ли доступ по IP (AllowUsers и т.п.).
+Если в логах **«Connection reset by peer»** или **«kex_exchange_identification»** — соединение сбрасывается со стороны сервера. Workflow делает до 3 попыток. На VPS проверьте: не блокирует ли **fail2ban** IP GitHub Actions; в `/etc/ssh/sshd_config` не ограничен ли доступ по IP (AllowUsers и т.п.).
+
+Если в логах **«Connection timed out during banner exchange»** — до VPS с раннеров GitHub не доходят пакеты по порту 22 (SSH). Возможные причины: фаервол на VPS режет входящий SSH с «чужих» IP; провайдер VPS ограничивает входящие соединения. **Что сделать:** либо разрешить SSH с любых IP (или добавить [диапазоны IP GitHub](https://api.github.com/meta)); либо не полагаться на workflow и выполнять починку **с вашего компьютера** по SSH (раздел «Быстрая починка (одной сессией SSH)» выше).
 
 ---
 
