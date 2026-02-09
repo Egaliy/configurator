@@ -64,8 +64,7 @@ jobs:
           done
           exit 1
 
-      - name: Enable HTTPS (Let's Encrypt, optional)
-        if: ${{ secrets.SSL_EMAIL != '' }}
+      - name: Enable HTTPS (Let's Encrypt)
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -74,5 +73,6 @@ jobs:
           SSL_EMAIL: ${{ secrets.SSL_EMAIL }}
         run: |
           export SSHPASS
-          sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$VPS_USER@$VPS_HOST" \
-            "apt-get update -qq && apt-get install -y -qq certbot python3-certbot-nginx >/dev/null 2>&1; certbot --nginx -d app.ubernatural.io --non-interactive --agree-tos -m '$SSL_EMAIL' --redirect 2>/dev/null || true"
+          EMAIL="${SSL_EMAIL:-admin@ubernatural.io}"
+          sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=15 "$VPS_USER@$VPS_HOST" \
+            "apt-get update -qq && apt-get install -y -qq certbot python3-certbot-nginx >/dev/null 2>&1; certbot --nginx -d app.ubernatural.io --non-interactive --agree-tos -m $EMAIL --redirect 2>/dev/null || true; systemctl reload nginx 2>/dev/null || true"
