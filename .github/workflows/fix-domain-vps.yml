@@ -11,6 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Require VPS secrets
+        run: |
+          if [ -z "${{ secrets.VPS_HOST }}" ] || [ -z "${{ secrets.VPS_PASSWORD }}" ]; then
+            echo "::error::Add repository secrets: VPS_HOST, VPS_USER, VPS_PASSWORD (Settings → Secrets and variables → Actions). Same as for Deploy to VPS."
+            exit 1
+          fi
       - name: Checkout
         uses: actions/checkout@v4
 

@@ -2,7 +2,11 @@
 
 ## Быстрая починка через GitHub Actions (без SSH с вашего компьютера)
 
-1. Убедитесь, что в репозитории заданы секреты: **VPS_HOST**, **VPS_USER**, **VPS_PASSWORD** (как для деплоя конфигуратора).
+1. **Секреты (обязательно).** В репозитории: **Settings** → **Secrets and variables** → **Actions** → **Repository secrets**. Должны быть:
+   - **VPS_HOST** — IP сервера, например `130.49.149.162`
+   - **VPS_USER** — пользователь SSH, например `root`
+   - **VPS_PASSWORD** — пароль от VPS  
+   Те же секреты, что для workflow «Deploy to VPS». Без них запуск «Fix domain on VPS» не сработает.
 2. На GitHub: **Actions** → workflow **«Fix domain on VPS»** → **Run workflow** → **Run workflow**.
 3. Дождитесь окончания (до ~10–15 минут). Workflow загрузит код Like That на сервер, перезагрузит nginx и соберёт/запустит приложение.
 4. Откройте https://app.ubernatural.io и https://app.ubernatural.io/admin.
