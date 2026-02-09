@@ -2,9 +2,11 @@
 
 ## Быстрая починка через GitHub Actions (без SSH с вашего компьютера)
 
-1. **Секреты (обязательно).** Варианты:
-   - **Repository secrets:** Settings → Secrets and variables → Actions → **Repository secrets** — добавить VPS_HOST, VPS_USER, VPS_PASSWORD.
-   - **Environment secrets:** если секреты добавлены в Environment (например в «production»), workflow уже настроен на `environment: production`. Если ваш environment называется иначе — в файле `.github/workflows/fix-domain-vps.yml` замените `environment: production` на своё имя.
+1. **Секреты (обязательно).** Нужны именно **Repository secrets**, не Environment. В репозитории: **Settings** → **Secrets and variables** → **Actions** → в блоке **«Repository secrets»** (не внутри Environment) добавьте:
+   - **VPS_HOST** — IP сервера, например `130.49.149.162`
+   - **VPS_USER** — например `root`
+   - **VPS_PASSWORD** — пароль от VPS  
+   Если секреты сейчас только в Environment — создайте такие же три в разделе Repository secrets (имя репозитория → Settings → Secrets and variables → Actions → New repository secret).
 2. На GitHub: **Actions** → workflow **«Fix domain on VPS»** → **Run workflow** → **Run workflow**.
 3. Дождитесь окончания (до ~10–15 минут). Workflow загрузит код Like That на сервер, перезагрузит nginx и соберёт/запустит приложение.
 4. Откройте https://app.ubernatural.io и https://app.ubernatural.io/admin.
