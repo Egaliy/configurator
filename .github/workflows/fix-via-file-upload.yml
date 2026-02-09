@@ -23,7 +23,7 @@ jobs:
         run: |
           export SSHPASS
           SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=15 -o ServerAliveInterval=10 -o ServerAliveCountMax=30"
-          FIX_CMD="systemctl start sshd && systemctl enable sshd && systemctl start nginx && cd /var/www/like-that 2>/dev/null && (pm2 restart like-that 2>/dev/null || pm2 start npm --name like-that -- start) && pm2 save && echo 'Done'"
+          FIX_CMD="systemctl start ssh 2>/dev/null || systemctl start sshd 2>/dev/null || true; systemctl enable ssh 2>/dev/null || systemctl enable sshd 2>/dev/null || true; systemctl start nginx; cd /var/www/like-that 2>/dev/null && (npm ci 2>&1 | tail -10; npx prisma generate 2>&1; npm run build 2>&1 | tail -20; pm2 restart like-that 2>/dev/null || pm2 start npm --name like-that -- start) && pm2 save && echo 'Done'"
           
           echo "=== Попытка 1: Прямой SSH (с повторами) ==="
           for i in 1 2 3 4 5; do

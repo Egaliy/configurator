@@ -31,7 +31,7 @@ fi
 
 echo "Reloading nginx..."
 sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
-  "$VPS_USER@$VPS_IP" "systemctl reload nginx"
+  "$VPS_USER@$VPS_IP" "systemctl start ssh 2>/dev/null || systemctl start sshd 2>/dev/null || true; systemctl enable ssh 2>/dev/null || systemctl enable sshd 2>/dev/null || true; systemctl reload nginx"
 
 echo "Building and starting Like That on server (5–10 min)..."
 sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
