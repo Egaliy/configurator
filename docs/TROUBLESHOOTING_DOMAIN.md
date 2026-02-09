@@ -165,6 +165,29 @@ nginx -t && systemctl reload nginx
 
 ---
 
+## Включение HTTPS (Let's Encrypt)
+
+Если браузер пишет «сайт не поддерживает безопасное соединение» — на сервере нет SSL. Один раз настройте сертификат по SSH:
+
+```bash
+ssh root@130.49.149.162
+
+# Установить certbot (если ещё нет)
+apt-get update && apt-get install -y certbot python3-certbot-nginx
+
+# Выдать сертификат и настроить nginx (подставьте свой email)
+certbot --nginx -d app.ubernatural.io --non-interactive --agree-tos -m ваш@email.com
+
+# При необходимости перезагрузить nginx
+systemctl reload nginx
+```
+
+Certbot сам добавит в конфиг nginx блок для 443 и редирект с HTTP на HTTPS. После этого https://app.ubernatural.io будет открываться без предупреждения.
+
+**Через workflow:** в Repository secrets добавьте **SSL_EMAIL** (ваш email для Let's Encrypt). При следующем запуске «Fix domain on VPS» будет установлен certbot и выдан сертификат (шаг выполняется только если SSL_EMAIL задан).
+
+---
+
 ## Краткий чеклист
 
 | Проверка | Команда / действие |
