@@ -6,7 +6,7 @@ on:
 jobs:
   quick-fix:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,9 +33,9 @@ jobs:
           echo "=== Переход в директорию проекта ==="
           sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" "cd /var/www/like-that && pwd"
           
-          echo "=== Установка зависимостей (это займёт 5-10 минут) ==="
+          echo "=== Установка зависимостей (это займёт 10-15 минут) ==="
           sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" \
-            "cd /var/www/like-that && npm ci" || {
+            "cd /var/www/like-that && npm ci --prefer-offline --no-audit" || {
             echo "::error::npm ci failed"
             exit 1
           }

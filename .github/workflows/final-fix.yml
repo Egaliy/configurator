@@ -1,0 +1,72 @@
+name: Final Fix - Extended Timeout
+
+on:
+  workflow_dispatch:
+
+jobs:
+  final-fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90  # Увеличенный таймаут для надёжности
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Install dependencies, build and deploy
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          export SSHPASS
+          SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=180"
+          
+          echo "=== 1. Проверка подключения ==="
+          sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" "echo 'Connected'; pwd" || {
+            echo "::error::SSH connection failed"
+            exit 1
+          }
+          
+          echo "=== 2. Переход в директорию проекта ==="
+          sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" "cd /var/www/like-that && pwd && ls -la package.json 2>/dev/null || echo 'package.json not found'"
+          
+          echo "=== 3. Установка зависимостей (может занять 15-20 минут) ==="
+          echo "Это самый долгий шаг. Ждите..."
+          sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" \
+            "cd /var/www/like-that && npm ci --prefer-offline --no-audit --no-fund 2>&1 | tail -50" || {
+            echo "::error::npm ci failed"
+            exit 1
+          }
+          
+          echo "=== 4. Prisma generate ==="
+          sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" \
+            "cd /var/www/like-that && npx prisma generate 2>&1 | tail -20" || {
+            echo "::warning::prisma generate failed, continuing..."
+          }
+          
+          echo "=== 5. Сборка приложения (может занять 5-10 минут) ==="
+          sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" \
+            "cd /var/www/like-that && npm run build 2>&1 | tail -50" || {
+            echo "::error::build failed"
+            exit 1
+          }
+          
+          echo "=== 6. Запуск через PM2 ==="
+          sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" \
+            "cd /var/www/like-that && pm2 restart like-that 2>/dev/null || pm2 start npm --name like-that -- start; pm2 save" || {
+            echo "::error::pm2 start failed"
+            exit 1
+          }
+          
+          echo "=== 7. Ожидание запуска приложения (30 секунд) ==="
+          sleep 30
+          
+          echo "=== 8. Проверка статуса ==="
+          sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" \
+            "pm2 list; echo ''; echo '=== Проверка приложения ==='; curl -s http://127.0.0.1:3000/api/admin/health 2>/dev/null | head -20 || echo 'App not responding yet, but PM2 is running'"
+          
+          echo "✅ Готово! Проверьте http://app.ubernatural.io"
+          echo "Если сайт не работает сразу, подождите 1-2 минуты для полного запуска"
