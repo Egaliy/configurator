@@ -51,3 +51,7 @@ jobs:
           
           echo "=== PM2 ЛОГИ (последние 30 строк) ==="
           sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" "pm2 logs --lines 30 --nostream 2>/dev/null || echo 'pm2 логи недоступны'" || true
+          echo ""
+          
+          echo "=== ПРОВЕРКА И ЗАПУСК SSH ДЕМОНА ==="
+          sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" "systemctl status sshd --no-pager -l 2>/dev/null | head -15 || echo 'sshd статус недоступен'; echo ''; echo 'Запуск sshd...'; systemctl start sshd 2>&1; systemctl enable sshd 2>&1; systemctl status sshd --no-pager -l 2>/dev/null | head -10" || true

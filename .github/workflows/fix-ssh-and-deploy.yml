@@ -1,0 +1,60 @@
+name: Fix SSH and Deploy Project
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fix-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass rsync
+
+      - name: Fix SSH daemon and deploy
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          export SSHPASS
+          SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=15"
+          
+          echo "=== Попытка подключения (если SSH не работает, пробуем через pm2) ==="
+          
+          # Пробуем подключиться напрямую
+          if sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" "echo 'SSH works'" 2>/dev/null; then
+            echo "SSH работает, продолжаем..."
+            SSH_WORKS=true
+          else
+            echo "SSH не отвечает. Пробуем исправить через альтернативные методы..."
+            SSH_WORKS=false
+          fi
+          
+          if [ "$SSH_WORKS" = "true" ]; then
+            echo "=== Запуск SSH демона ==="
+            sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" \
+              "systemctl start sshd 2>&1; systemctl enable sshd 2>&1; systemctl status sshd --no-pager | head -5" || true
+            
+            echo "=== Запуск nginx ==="
+            sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" "systemctl start nginx 2>&1; systemctl status nginx --no-pager | head -5" || true
+            
+            echo "=== Загрузка Like That на сервер ==="
+            sshpass -e rsync -avz --delete \
+              -e "sshpass -e ssh $SSH_OPTS" \
+              --exclude 'node_modules' --exclude '.next' --exclude '.git' \
+              "like that/" "$VPS_USER@$VPS_HOST:/var/www/like-that/" || true
+            
+            echo "=== Сборка и запуск Like That ==="
+            sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" \
+              "cd /var/www/like-that && bash scripts/build-and-restart.sh" || true
+            
+            echo "=== Проверка pm2 ==="
+            sshpass -e ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" "pm2 list" || true
+          else
+            echo "SSH недоступен. Нужен доступ через панель VPS или консоль для запуска: systemctl start sshd"
+          fi
