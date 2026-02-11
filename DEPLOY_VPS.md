@@ -1,19 +1,6 @@
 # Инструкция по деплою на VPS
 
-## Деплой через GitHub Actions (автоматически при push в main)
-
-1. В репозитории на GitHub: **Settings → Secrets and variables → Actions**.
-2. Создайте секреты (Repository secrets):
-   - **VPS_HOST** — IP сервера, например `130.49.149.162`
-   - **VPS_USER** — пользователь SSH, например `root`
-   - **VPS_PASSWORD** — пароль от VPS
-   - **VPS_REMOTE_DIR** (необязательно) — каталог на сервере, по умолчанию `/var/www/configurator`
-3. При каждом **push в ветку main** workflow «Deploy to VPS» соберёт проект и загрузит файлы на VPS.
-4. Запуск вручную: **Actions → Deploy to VPS → Run workflow**.
-
----
-
-## Ручная загрузка на VPS
+## Шаги для загрузки на VPS:
 
 ### 1. Установите sshpass (если еще не установлен):
 ```bash

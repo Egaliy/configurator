@@ -1,9 +1,10 @@
-# Деплой на VPS — через workflow "Deploy to VPS" и "Fix domain on VPS".
-# Этот workflow отключён при push, т.к. Pages в репо не включены. Чтобы включить: Settings → Pages → Source: GitHub Actions.
 name: Deploy to GitHub Pages
 
 on:
-  workflow_dispatch:  # только ручной запуск; при push не запускается
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -41,12 +42,13 @@ jobs:
         with:
           path: './dist'
 
-  # Раскомментировать, когда включите GitHub Pages (Settings → Pages → Source: GitHub Actions).
-  # deploy:
-  #   environment: github-pages
-  #   runs-on: ubuntu-latest
-  #   needs: build
-  #   steps:
-  #     - name: Deploy to GitHub Pages
-  #       id: deployment
-  #       uses: actions/deploy-pages@v4
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

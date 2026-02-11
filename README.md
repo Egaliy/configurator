@@ -2,8 +2,6 @@
 
 A dark-themed web application for calculating website development costs based on project complexity.
 
-**Дизайн-система (для разработчиков и AI):** [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) — цвета, типографика, кнопки, формы, отступы, как добавлять новый UI в том же стиле.
-
 ## Features
 
 - Two sliders for configuration:
