@@ -1,0 +1,106 @@
+@import url('https://fonts.googleapis.com/css2?family=Almarena+Neue:wght@400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design system (aligned with configurator): dark theme, white + opacity only */
+:root {
+  --background: #000000;
+  --foreground: #ffffff;
+
+  --menu-width: 180px;
+  --menu-height: 64px;
+  --menu-padding: 8px;
+  --menu-gap: 10px;
+  --menu-radius: 123px;
+  --menu-fill: rgba(0, 0, 0, 0.6);
+  --menu-stroke-width: 1.171875px;
+  --menu-stroke-gradient: linear-gradient(180deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+  --menu-shadow: 0 12.890625px 11.71875px 0 rgba(0, 0, 0, 0.3);
+  --menu-blur-px: 18.75;
+  --menu-blur: 18.75px;
+
+  --menu-btn-size: 48px;
+  --menu-btn-fill: rgba(255, 255, 255, 0.05);
+  --menu-btn-stroke-gradient: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 100%);
+  --menu-btn-radius: 123px;
+
+  --circle-size: 64px;
+  --circle-fill: rgba(255, 255, 255, 0.08);
+  --circle-stroke-gradient: linear-gradient(180deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+  --circle-radius: 32px;
+  --circle-shadow: 0 12.89px 11.72px 0 rgba(0, 0, 0, 0.3);
+
+  --icon-size: 20.508px;
+  --icon-stroke: rgba(255, 255, 255, 0.55);
+  --icon-stroke-width: 2.9296875;
+
+  --photo-inset: 32px;
+  --photo-radius: 16px;
+  --zone-width: 120px;
+  --footer-height: 64px;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: "Almarena Neue Regular", "Almarena Neue", system-ui, sans-serif;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.2em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.heading-large {
+  font-family: "Almarena Neue Regular", "Almarena Neue", sans-serif;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1.2;
+  color: white;
+  letter-spacing: -0.03em;
+}
+
+.form-input {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  padding: 8px 16px;
+  background: transparent;
+  color: white;
+  font-size: 19px;
+  line-height: 23px;
+  letter-spacing: -0.02em;
+}
+
+.form-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.form-submit-btn {
+  width: 54px;
+  height: 54px;
+  border-radius: 12px;
+  background: white;
+  color: black;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.form-submit-btn:hover {
+  opacity: 0.9;
+}
