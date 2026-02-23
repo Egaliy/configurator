@@ -116,3 +116,7 @@ export function configToSearchParams(c: ConfiguratorConfig): URLSearchParams {
   Object.entries(c.addonPrices).forEach(([id, price]) => sp.set(`addon_${id}`, String(price)))
   return sp
 }
+
+/** Default query string for the main page. When user opens / without params, redirect to this. */
+export const DEFAULT_HOMEPAGE_QUERY =
+  'step=1&preset=1&v=1&rate_reduce=1670&rate_increase=1375&pages=1,4,7,22&base_days=2.5&like_days=1&upload_days=1&sub_pct=90&upfront_pct=90&link_pct=95&addon_research=1300&addon_copywriting=3900&addon_secret=1950&addon_installments=3900'

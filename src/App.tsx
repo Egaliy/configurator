@@ -5,6 +5,7 @@ import ConfiguratorPage from './pages/ConfiguratorPage'
 import ConfiguratorConfigPage from './pages/ConfiguratorConfigPage'
 import ProjectsPage from './pages/ProjectsPage'
 import LikeThatPage from './pages/LikeThatPage'
+import { DEFAULT_HOMEPAGE_QUERY } from './configuratorConfig'
 
 const FB_PIXEL_ID = import.meta.env.VITE_FB_PIXEL_ID as string | undefined
 
@@ -37,13 +38,23 @@ function RedirectToStep({ step }: { step: number }) {
   return <Navigate to={`/?${sp.toString()}`} replace />
 }
 
+/** Main page: if opened without params, redirect to default homepage settings. */
+function ConfiguratorPageWithDefaults() {
+  const location = useLocation()
+  const hasQuery = location.search.length > 1 && location.search.startsWith('?')
+  if (location.pathname === '/' && !hasQuery) {
+    return <Navigate to={`/?${DEFAULT_HOMEPAGE_QUERY}`} replace />
+  }
+  return <ConfiguratorPage />
+}
+
 function App() {
   useFacebookPixel()
   return (
     <BrowserRouter>
       <Routes>
         <Route element={<Layout />}>
-          <Route path="/" element={<ConfiguratorPage />} />
+          <Route path="/" element={<ConfiguratorPageWithDefaults />} />
           <Route path="config" element={<ConfiguratorConfigPage />} />
           <Route path="animation" element={<RedirectToStep step={2} />} />
           <Route path="reduce" element={<RedirectToStep step={3} />} />
