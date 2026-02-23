@@ -1,4 +1,4 @@
-/** Роли по ТЗ: администратор, дизайнер, заказчик */
+/** Roles: admin, designer, client */
 export type Role = 'admin' | 'designer' | 'client'
 
 export interface User {
@@ -28,17 +28,17 @@ export function setStoredRole(role: Role): void {
   }
 }
 
-/** Может добавлять и редактировать комментарии */
+/** Can add and edit comments */
 export function canComment(_role: Role): boolean {
   return true
 }
 
-/** Может создавать/редактировать этапы и события на таймлайне */
+/** Can create/edit stages and events on the timeline */
 export function canEditStages(role: Role): boolean {
   return role === 'admin'
 }
 
-/** Может управлять проектом (настройки, участники, удаление) */
+/** Can manage project (settings, members, delete) */
 export function canManageProject(role: Role): boolean {
   return role === 'admin'
 }

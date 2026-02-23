@@ -89,6 +89,21 @@
   input[type="number"] {
     -moz-appearance: textfield;
   }
+
+  /* Active option card — no change on hover/focus */
+  .option-card-active:hover,
+  .option-card-active:focus,
+  .option-card-active:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  /* Icons: 20% on inactive cards, 100% on active */
+  .option-card:not(.option-card-active) img {
+    opacity: 0.2;
+  }
+  .option-card-active img {
+    opacity: 1;
+  }
 }
 
 @layer utilities {
@@ -118,5 +133,114 @@
   
   .animate-step-in {
     animation: step-in 0.28s ease-out;
+  }
+
+  /* Configurator light theme */
+  .configurator-theme-light {
+    @apply bg-neutral-100 text-neutral-900;
+  }
+  .configurator-theme-light .bg-black,
+  .configurator-theme-light [class*="bg-black"] {
+    background-color: rgb(245 245 245) !important;
+  }
+  .configurator-theme-light .text-white {
+    color: rgb(23 23 23) !important;
+  }
+  .configurator-theme-light .bg-white\/5 {
+    background-color: rgb(229 229 229) !important;
+  }
+  .configurator-theme-light .border-white\/10 {
+    border-color: rgb(212 212 212) !important;
+  }
+  .configurator-theme-light .bg-white\/10 {
+    background-color: rgb(212 212 212) !important;
+  }
+  .configurator-theme-light .bg-white\/15:hover:not(.option-card-active) {
+    background-color: rgb(163 163 163) !important;
+  }
+  .configurator-theme-light button.bg-white.text-black {
+    background-color: rgb(23 23 23) !important;
+    color: rgb(255 255 255) !important;
+  }
+  .configurator-theme-light button.bg-white.text-black:hover {
+    background-color: rgb(38 38 38) !important;
+  }
+  .configurator-theme-light .bg-white\/40,
+  .configurator-theme-light .bg-white\/20 {
+    background-color: rgb(163 163 163) !important;
+  }
+  /* Step strip in light theme — black */
+  .configurator-theme-light .step-indicator-strip button.bg-white {
+    background-color: rgb(23 23 23) !important;
+  }
+  .configurator-theme-light .step-indicator-strip button.bg-white\/20 {
+    background-color: rgba(23, 23, 23, 0.2) !important;
+  }
+  .configurator-theme-light .step-indicator-strip button:hover {
+    background-color: rgba(23, 23, 23, 0.4) !important;
+  }
+  /* Step labels (1. Goals, 2. Scope…) — readable in light theme */
+  .configurator-theme-light .step-indicator .text-white\/40 {
+    color: rgb(82 82 82) !important;
+  }
+  .configurator-theme-light .step-indicator button.text-white\/40:hover,
+  .configurator-theme-light .step-indicator .text-white\/70 {
+    color: rgb(38 38 38) !important;
+  }
+  .configurator-theme-light input {
+    border-color: rgb(163 163 163);
+    color: rgb(23 23 23);
+  }
+  .configurator-theme-light input::placeholder {
+    color: rgb(163 163 163);
+  }
+  .configurator-theme-light input:focus {
+    --tw-ring-color: rgb(23 23 23);
+  }
+  .configurator-theme-light input[type="checkbox"],
+  .configurator-theme-light input[type="radio"] {
+    border-color: rgb(163 163 163);
+  }
+  .configurator-theme-light input[type="checkbox"]:checked::after,
+  .configurator-theme-light input[type="radio"]:checked::after {
+    background: rgb(23 23 23);
+  }
+  .configurator-theme-light .line-through {
+    color: rgb(115 115 115) !important;
+  }
+  /* Active choice card (Goals, Scope) — higher contrast in light theme */
+  .configurator-theme-light .option-card-active {
+    background-color: rgb(38 38 38) !important;
+    border-color: rgb(38 38 38) !important;
+    color: rgb(255 255 255) !important;
+  }
+  .configurator-theme-light .option-card-active .text-white {
+    color: rgb(255 255 255) !important;
+  }
+  .configurator-theme-light .option-card-active .opacity-60 {
+    color: rgba(255, 255, 255, 0.75) !important;
+  }
+  .configurator-theme-light .option-card-active:hover {
+    background-color: rgb(38 38 38) !important;
+    border-color: rgb(38 38 38) !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  .configurator-theme-light .option-card-active {
+    cursor: default;
+  }
+  /* Icons in light theme: black on inactive (20% opacity), white on active (100%) */
+  .configurator-theme-light .option-card img {
+    filter: brightness(0);
+    opacity: 0.2;
+  }
+  .configurator-theme-light .option-card-active img {
+    filter: none;
+    opacity: 1;
+  }
+  /* Add-on icons (Increase value): always black — no row background change */
+  .configurator-theme-light .addon-option img,
+  .configurator-theme-light .addon-option-selected img {
+    filter: brightness(0);
   }
 }

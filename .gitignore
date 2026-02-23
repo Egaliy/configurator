@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Env and bot-authorized chats (server-only)
+.env
+api/authorized_chats.json

@@ -1,14 +1,19 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import StagesTable from '../components/StagesTable'
 import Configurator from '../components/Configurator'
-/**
- * Ставка за день: психология версий.
- * - reduce: ставка выше (1670) — база выше, скидки «снижают» цену; средняя итоговая ~ как при 1500.
- * - increase: ставка ниже (1375) — база ниже, допы «поднимают» цену; средняя итоговая та же.
- */
-const DAY_RATE_REDUCE = 1670
-const DAY_RATE_INCREASE = 1375
+import {
+  trackConfiguratorStep,
+  trackConfiguratorGoal,
+  trackConfiguratorScope,
+  trackConfiguratorNavigate,
+  trackConfiguratorOption,
+  trackConfiguratorAddon,
+  trackConfiguratorLead,
+  trackConfiguratorBookCall,
+} from '../utils/facebookPixel'
+import { parseConfigFromSearchParams } from '../configuratorConfig'
+import { submitLead, type LeadPayload } from '../utils/submitLead'
 
 interface StageDays {
   research: number
@@ -20,10 +25,10 @@ interface StageDays {
 }
 
 const ANIMATION_LEVELS = [
-  { title: 'Basic', subtitle: 'Clean and Elegant', value: 1 },
-  { title: 'Advanced', subtitle: 'Premium Motion', value: 2 },
-  { title: 'Cinematic', subtitle: 'Hero-Level', value: 3 },
-  { title: 'Immersive', subtitle: 'More than a website.', value: 4 },
+  { title: 'Basic', subtitle: 'Clean and Elegant', value: 1, icon: 'Basic.svg' },
+  { title: 'Advanced', subtitle: 'Premium Motion', value: 2, icon: 'Advanced.svg' },
+  { title: 'Cinematic', subtitle: 'Hero-Level', value: 3, icon: 'Cinematic.svg' },
+  { title: 'Immersive', subtitle: 'More than a website.', value: 4, icon: 'Immersive.svg' },
 ] as const
 
 function getAnimationLabel(value: number): string {
@@ -31,7 +36,7 @@ function getAnimationLabel(value: number): string {
   return level ? level.title : 'Animation'
 }
 
-/** Галерея: картинки в public/imgs/animation/ level-1-1.gif … level-5-5.gif */
+/** Gallery: images in public/imgs/animation/ level-1-1.gif … level-5-5.gif */
 function AnimationGallerySlot({ level, index, fill16x9 }: { level: number; index: number; fill16x9?: boolean }) {
   const src = `/imgs/animation/level-${level}-${index}.gif`
   return (
@@ -55,21 +60,20 @@ function AnimationGallerySlot({ level, index, fill16x9 }: { level: number; index
 }
 
 const SITE_TYPES = [
-  { title: 'Promo Site', subtitle: '1 page website', pages: 1 },
-  { title: 'SaaS Product Site', subtitle: '3-5 page website', pages: 4 },
-  { title: 'Corporate Site', subtitle: '5-9 page website', pages: 7 },
-  { title: 'Enterprise Site', subtitle: '15-30 page website', pages: 22 },
+  { title: 'Promo Site', subtitle: '1 page website', pages: 1, icon: 'Promo.svg' },
+  { title: 'SaaS Product Site', subtitle: '3-5 page website', pages: 4, icon: 'SaaS.svg' },
+  { title: 'Corporate Site', subtitle: '5-9 page website', pages: 7, icon: 'Corporate.svg' },
+  { title: 'Enterprise Site', subtitle: '15-30 page website', pages: 22, icon: 'Enterprise.svg' },
 ] as const
 
 const ADDONS = [
-  { id: 'research', price: 1300, title: 'Extensive Research', description: 'We will interview up to 10 stakeholders', badge: true },
-  { id: 'copywriting', price: 3900, title: 'Professional Copywriting', description: 'We will write the content for your website', badge: false },
-  { id: 'secret', price: 1950, title: 'Keep it secret', description: 'No one will ever know that the website was done by us', badge: false },
-  { id: 'installments', price: 3900, title: 'Pay in installments', description: 'Reduce your upfront costs', badge: true },
+  { id: 'research', price: 1300, title: 'Extensive Research', description: 'We will interview up to 10 stakeholders', badge: true, icon: 'Research.svg' },
+  { id: 'copywriting', price: 3900, title: 'Professional Copywriting', description: 'We will write the content for your website', badge: false, icon: 'Copywriting.svg' },
+  { id: 'secret', price: 1950, title: 'Keep it secret', description: 'No one will ever know that the website was done by us', badge: false, icon: 'Secret.svg' },
+  { id: 'installments', price: 3900, title: 'Pay in installments', description: 'Reduce your upfront costs', badge: true, icon: 'Installments.svg' },
 ] as const
 
-function calculateStageDays(pages: number, animation: number): StageDays {
-  const baseDaysPerPage = 2.5
+function calculateStageDays(pages: number, animation: number, baseDaysPerPage: number): StageDays {
   const pagesDays = (pages - 1) * baseDaysPerPage
 
   let research = Math.max(1, Math.round(1 + pagesDays * 0.2))
@@ -98,28 +102,37 @@ function calculateStageDays(pages: number, animation: number): StageDays {
   }
 }
 
-/** Версия шага 3 для A/B: reduce = снижение цены, increase = увеличение (допы) */
+/** Step 3 variant for A/B: reduce = lower cost, increase = add-ons */
 function isStep3Increase(v: string | null): boolean {
   return v === '1'
 }
 
 /**
- * Один адрес: всё на /. Слайды меняются по ?step=1|2|3|4.
- * Параметры: step, v=0|1 (шаг 3), preset=0|1 (предвыбор). Пример: /?step=2&v=1&preset=1
+ * Single URL: everything on /. Steps change via ?step=1|2|3|4.
+ * Params: step, v=0|1 (step 3), preset=0|1 (preselection). Math from ?rate_reduce=, addon_*=, etc.
  */
 
 export default function ConfiguratorPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  /** Шаг из URL (1–4); один адрес, слайды меняются */
+  const config = useMemo(() => parseConfigFromSearchParams(searchParams), [searchParams])
+  /** Step from URL (1–4) */
   const step = Math.min(4, Math.max(1, parseInt(searchParams.get('step') || '1', 10) || 1)) as 1 | 2 | 3 | 4
-  /** Версия шага 3: v=1 → increase, иначе reduce */
+  /** Step 3 variant: v=1 → increase, else reduce */
   const step3Version: 'reduce' | 'increase' = searchParams.get('v') === '1' ? 'increase' : 'reduce'
-  /** Ставка за день: в reduce выше, в increase ниже — средняя итоговая сопоставима. */
-  const dayRate = step3Version === 'reduce' ? DAY_RATE_REDUCE : DAY_RATE_INCREASE
+  /** Light or dark theme (theme=light in URL) */
+  const theme = searchParams.get('theme') === 'light' ? 'light' : 'dark'
+  /** Rate per day: from URL ?rate= or default for step 3 variant */
+  const defaultDayRate = step3Version === 'reduce' ? config.rateReduce : config.rateIncrease
+  const rateParam = searchParams.get('rate')
+  const dayRate = (rateParam != null && rateParam !== '' && !Number.isNaN(Number(rateParam)) && Number(rateParam) > 0)
+    ? Math.round(Number(rateParam))
+    : defaultDayRate
 
   const goToStep = (n: number) => {
+    const toStep = Math.min(4, Math.max(1, n))
+    trackConfiguratorNavigate(toStep > step ? 'next' : 'back', step, toStep)
     const next = new URLSearchParams(searchParams)
-    next.set('step', String(Math.min(4, Math.max(1, n))))
+    next.set('step', String(toStep))
     setSearchParams(next, { replace: true })
   }
 
@@ -127,22 +140,26 @@ export default function ConfiguratorPage() {
     window.scrollTo(0, 0)
   }, [step])
 
-  // Параметры URL: v=0|1 (шаг 3), preset=0|1 (предвыбор кнопок)
+  useEffect(() => {
+    trackConfiguratorStep(step)
+  }, [step])
+
+  // URL params: v=0|1 (step 3), preset=0|1 (button preselection)
   const getInitialPreset = () => {
     if (typeof window === 'undefined') return null
     return new URLSearchParams(window.location.search).get('preset')
   }
   const [siteTypeIndex, setSiteTypeIndex] = useState(() => {
     const p = getInitialPreset()
-    if (p === 'cheap') return 0
-    if (p === 'expensive') return 3
+    if (p === '0') return 0   // cheapest — Promo Site (1 page)
+    if (p === '1') return 3   // most expensive — Enterprise (15–30 pages)
     return 3
   })
-  const pages = SITE_TYPES[siteTypeIndex].pages
+  const pages = config.sitePages[siteTypeIndex] ?? SITE_TYPES[siteTypeIndex].pages
   const [animation, setAnimation] = useState(() => {
     const p = getInitialPreset()
-    if (p === 'cheap') return 1
-    if (p === 'expensive') return 4
+    if (p === '0') return 1   // lightest/cheapest animation — Basic
+    if (p === '1') return 4   // most expensive animation — Immersive
     return 3
   })
   const [likeThat, setLikeThat] = useState(false)
@@ -153,82 +170,93 @@ export default function ConfiguratorPage() {
   const [linkToUs, setLinkToUs] = useState(false)
   const [showDetailedCalculation, setShowDetailedCalculation] = useState(false)
   const [requestSubmitted, setRequestSubmitted] = useState(false)
-  const [galleryIndex, setGalleryIndex] = useState(0)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const [selectedAddonIds, setSelectedAddonIds] = useState<Set<string>>(new Set())
 
-  useEffect(() => {
-    setGalleryIndex(0)
-  }, [animation])
-
-  useEffect(() => {
-    const t = setInterval(() => {
-      setGalleryIndex((i) => (i + 1) % 5)
-    }, 4000)
-    return () => clearInterval(t)
-  }, [animation])
-
-  const baseDays = calculateStageDays(pages, animation)
+  const baseDays = calculateStageDays(pages, animation, config.baseDaysPerPage)
   const [originalDays, setOriginalDays] = useState<StageDays>(baseDays)
   const [stageDays, setStageDays] = useState<StageDays>(baseDays)
 
   const updateDays = (newPages: number, newAnimation: number) => {
-    const newOriginalDays = calculateStageDays(newPages, newAnimation)
+    const newOriginalDays = calculateStageDays(newPages, newAnimation, config.baseDaysPerPage)
     setOriginalDays(newOriginalDays)
     let research = newOriginalDays.research
-    if (likeThat) research = Math.max(0, research - 1)
+    if (likeThat) research = Math.max(0, research - config.likeThatDays)
     let wireframes = newOriginalDays.wireframes
-    if (uploadContent) wireframes = Math.max(0, wireframes - 1)
+    if (uploadContent) wireframes = Math.max(0, wireframes - config.uploadContentDays)
     setStageDays({ ...newOriginalDays, research, wireframes })
   }
 
   const handleSiteTypeSelect = (index: number) => {
+    const site = SITE_TYPES[index]
+    trackConfiguratorGoal(site.title, site.pages)
     setSiteTypeIndex(index)
-    updateDays(SITE_TYPES[index].pages, animation)
+    updateDays(site.pages, animation)
   }
 
   const handleAnimationLevelSelect = (value: number) => {
+    trackConfiguratorScope(getAnimationLabel(value), value)
     setAnimation(value)
     updateDays(pages, value)
   }
 
   const handleLikeThatChange = (checked: boolean) => {
     setLikeThat(checked)
-    const currentOriginal = calculateStageDays(pages, animation)
+    const currentOriginal = calculateStageDays(pages, animation, config.baseDaysPerPage)
     setOriginalDays(currentOriginal)
-    const newResearch = checked ? Math.max(0, currentOriginal.research - 1) : currentOriginal.research
-    const newWireframes = uploadContent ? Math.max(0, currentOriginal.wireframes - 1) : currentOriginal.wireframes
+    const newResearch = checked ? Math.max(0, currentOriginal.research - config.likeThatDays) : currentOriginal.research
+    const newWireframes = uploadContent ? Math.max(0, currentOriginal.wireframes - config.uploadContentDays) : currentOriginal.wireframes
     setStageDays({ ...currentOriginal, research: newResearch, wireframes: newWireframes })
   }
 
   const handleUploadContentChange = (checked: boolean) => {
+    trackConfiguratorOption('upload_content_yourself', checked)
     setUploadContent(checked)
-    const currentOriginal = calculateStageDays(pages, animation)
+    const currentOriginal = calculateStageDays(pages, animation, config.baseDaysPerPage)
     setOriginalDays(currentOriginal)
-    const newWireframes = checked ? Math.max(0, currentOriginal.wireframes - 1) : currentOriginal.wireframes
-    const newResearch = likeThat ? Math.max(0, currentOriginal.research - 1) : currentOriginal.research
+    const newWireframes = checked ? Math.max(0, currentOriginal.wireframes - config.uploadContentDays) : currentOriginal.wireframes
+    const newResearch = likeThat ? Math.max(0, currentOriginal.research - config.likeThatDays) : currentOriginal.research
     setStageDays({ ...currentOriginal, research: newResearch, wireframes: newWireframes })
   }
 
   const totalDays = Object.values(stageDays).reduce((sum, days) => sum + days, 0)
-  const baseTotalDays = Object.values(calculateStageDays(pages, animation)).reduce((sum, days) => sum + days, 0)
+  const baseTotalDays = Object.values(calculateStageDays(pages, animation, config.baseDaysPerPage)).reduce((sum, days) => sum + days, 0)
   const baseCost = baseTotalDays * dayRate
   const currentCost = totalDays * dayRate
   const discounts: string[] = []
   let totalCost = currentCost
   if (likeThat) discounts.push('Conduct research yourself')
   if (uploadContent) discounts.push('Upload content yourself')
-  if (subscription) { totalCost *= 0.9; discounts.push('Subscription −10%') }
-  if (paymentUpfront) { totalCost *= 0.9; discounts.push('Pay upfront −10%') }
-  if (linkToUs) { totalCost *= 0.95; discounts.push('Link to us −5%') }
-  const addonsTotal = ADDONS.filter((a) => selectedAddonIds.has(a.id)).reduce((sum, a) => sum + a.price, 0)
+  if (subscription) { totalCost *= config.subscriptionPct / 100; discounts.push(`Subscription −${100 - config.subscriptionPct}%`) }
+  if (paymentUpfront) { totalCost *= config.upfrontPct / 100; discounts.push(`Pay upfront −${100 - config.upfrontPct}%`) }
+  if (linkToUs) { totalCost *= config.linkPct / 100; discounts.push(`Link to us −${100 - config.linkPct}%`) }
+  const addonsTotal = ADDONS.filter((a) => selectedAddonIds.has(a.id)).reduce(
+    (sum, a) => sum + (config.addonPrices[a.id] ?? a.price),
+    0
+  )
   const summaryTotalCost = totalCost + addonsTotal
   const hasDiscounts = discounts.length > 0 || totalDays < baseTotalDays
+
+  /** Weeks for payment split (5 work days = 1 week) */
+  const workWeeks = Math.max(1, Math.ceil(totalDays / 5))
+  /** Show "X/week for N weeks (Total)" when installments addon is selected */
+  const showPaymentSplit = selectedAddonIds.has('installments')
+  const formatInvestment = (amount: number, useSplit: boolean) => {
+    if (useSplit) {
+      const perWeek = Math.round(amount / workWeeks)
+      return `Investment: $${perWeek.toLocaleString()}/week for ${workWeeks} weeks ($${Math.round(amount).toLocaleString()})`
+    }
+    return `Investment: $${Math.round(amount).toLocaleString()}`
+  }
 
   const toggleAddon = (id: string) => {
     setSelectedAddonIds((prev) => {
       const next = new Set(prev)
+      const added = !next.has(id)
       if (next.has(id)) next.delete(id)
       else next.add(id)
+      trackConfiguratorAddon(id, added)
       return next
     })
   }
@@ -242,8 +270,8 @@ export default function ConfiguratorPage() {
   const nextStepLabel = STEPS.find((s) => s.num === step + 1)?.label
 
   const stepIndicator = (
-    <div className="mb-8">
-      <div className="flex gap-1 mb-4">
+    <div className="mb-8 step-indicator">
+      <div className="flex gap-1 mb-4 step-indicator-strip">
         {STEPS.map((s) => (
           <button
             key={s.num}
@@ -274,65 +302,51 @@ export default function ConfiguratorPage() {
   )
 
   return (
-    <div className={`min-h-screen bg-black text-white pb-0 w-full`}>
-      {/* Шаги 1–5: слева картинка (галерея), справа контент */}
+    <div
+      data-theme={theme}
+      className={`min-h-screen pb-0 w-full configurator-root ${theme === 'light' ? 'configurator-theme-light' : 'bg-black text-white'}`}
+    >
+      {/* Steps 1–2: left image (gallery), right content */}
       {step <= 2 ? (
         <div key="step1-2" className="grid grid-cols-1 lg:grid-cols-2 w-full min-h-screen lg:h-screen animate-step-in">
-          {/* Левая колонка: галерея на всю ширину и высоту половины */}
-          <div className="flex flex-col h-screen lg:h-full w-full min-h-0 bg-black order-2 lg:order-1">
+          {/* Left column: on mobile first, 300px height; on desktop full height */}
+          <div className="flex flex-col h-[300px] lg:h-full w-full min-h-0 flex-shrink-0 lg:flex-shrink bg-black order-1 lg:order-1">
             <div className="flex-1 min-h-0 flex flex-col p-2 lg:p-4">
-              <div className="flex-1 min-h-0 relative rounded-lg lg:rounded-xl overflow-hidden bg-white/5 border border-white/10 w-full">
-                <div
-                  className="absolute inset-0 flex transition-transform duration-500 ease-out"
-                  style={{ transform: `translateX(-${galleryIndex * 100}%)` }}
-                >
-                  {[1, 2, 3, 4, 5].map((index) => (
-                    <div key={index} className="flex-shrink-0 w-full h-full">
-                      <AnimationGallerySlot level={animation} index={index} fill16x9 />
-                    </div>
-                  ))}
-                </div>
-                <div className="flex justify-center gap-1.5 py-2 absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent">
-                  {[0, 1, 2, 3, 4].map((i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setGalleryIndex(i)}
-                      className={`w-2 h-2 rounded-full transition-colors ${i === galleryIndex ? 'bg-white' : 'bg-white/40'}`}
-                      aria-label={`Case ${i + 1}`}
-                    />
-                  ))}
-                </div>
+              <div className="flex-1 min-h-0 relative rounded-lg lg:rounded-xl overflow-hidden bg-white/5 border border-white/10 w-full h-full">
+                <AnimationGallerySlot level={animation} index={1} fill16x9 />
               </div>
             </div>
           </div>
-          {/* Правая колонка: конфигуратор */}
-          <div className="flex flex-col h-screen lg:h-full w-full min-h-0 px-6 lg:px-12 lg:pl-10 py-8 lg:py-12 order-1 lg:order-2 overflow-y-auto">
-            <div className="mb-8">
-              <img src="/imgs/logo.png" alt="Logo" className="h-10 lg:h-12 mb-6" />
-              {step === 1 && (
-                <>
-                  <h1 className="text-3xl md:text-4xl lg:text-5xl font-normal mb-4 heading-large">
-                    Website Cost Configurator
-                  </h1>
-                  <p className="text-base md:text-lg opacity-60 tracking-tighter">
-                    Configure your website project parameters and see the estimated cost and timeline
-                  </p>
-                </>
-              )}
-              {step === 2 && (
-                <>
-                  <h1 className="text-3xl md:text-4xl lg:text-5xl font-normal mb-4 heading-large">
-                    Choose animation level
-                  </h1>
-                  <p className="text-base md:text-lg opacity-60 tracking-tighter">
-                    Select the level of animation for your project
-                  </p>
-                </>
-              )}
+          {/* Right column: on mobile order — steps, title, buttons */}
+          <div className="flex flex-col min-h-0 flex-1 lg:h-full w-full px-6 lg:px-12 lg:pl-10 py-6 lg:py-12 order-2 lg:order-2 overflow-y-auto">
+            <div className="flex flex-col">
+              <div className="order-2 lg:order-1 mb-6 lg:mb-8">
+                {step === 1 && (
+                  <>
+                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-normal mb-4 heading-large">
+                      Website Cost Configurator
+                    </h1>
+                    <p className="text-base md:text-lg opacity-60 tracking-tighter">
+                      Configure your website project parameters and see the estimated cost and timeline
+                    </p>
+                  </>
+                )}
+                {step === 2 && (
+                  <>
+                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-normal mb-4 heading-large">
+                      Choose animation level
+                    </h1>
+                    <p className="text-base md:text-lg opacity-60 tracking-tighter">
+                      Select the level of animation for your project
+                    </p>
+                  </>
+                )}
+              </div>
+              <div className="order-1 lg:order-2 mb-6 lg:mb-8">
+                {stepIndicator}
+              </div>
             </div>
-            {stepIndicator}
-            <div className="space-y-10">
+            <div className="space-y-10 order-3">
               {step === 1 && (
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   {SITE_TYPES.map((site, index) => (
@@ -340,12 +354,18 @@ export default function ConfiguratorPage() {
                       key={index}
                       type="button"
                       onClick={() => handleSiteTypeSelect(index)}
-                      className={`text-left px-4 py-4 sm:px-5 sm:py-5 rounded-xl transition-colors ${
+                      className={`option-card text-left px-4 py-4 sm:px-5 sm:py-5 rounded-xl transition-colors ${
                         siteTypeIndex === index
-                          ? 'bg-white/10 border border-white/30'
+                          ? 'option-card-active bg-white/15 border-2 border-white/50 hover:bg-white/15 hover:border-white/50 cursor-default transition-none outline-none focus:outline-none focus:ring-0'
                           : 'bg-white/5 border border-transparent hover:bg-white/10 hover:border-white/10'
                       }`}
                     >
+                      <img
+                        src={`/imgs/${site.icon}`}
+                        alt=""
+                        className="w-6 h-6 mb-2 object-contain opacity-90"
+                        onError={(e) => { e.currentTarget.style.display = 'none' }}
+                      />
                       <div className="text-base sm:text-lg font-medium text-white tracking-tighter">
                         {site.title}
                       </div>
@@ -364,12 +384,18 @@ export default function ConfiguratorPage() {
                       key={level.value}
                       type="button"
                       onClick={() => handleAnimationLevelSelect(level.value)}
-                      className={`text-left px-4 py-4 sm:px-5 sm:py-5 rounded-xl transition-colors ${
+                      className={`option-card text-left px-4 py-4 sm:px-5 sm:py-5 rounded-xl transition-colors ${
                         animation === level.value
-                          ? 'bg-white/10 border border-white/30'
+                          ? 'option-card-active bg-white/15 border-2 border-white/50 hover:bg-white/15 hover:border-white/50 cursor-default transition-none outline-none focus:outline-none focus:ring-0'
                           : 'bg-white/5 border border-transparent hover:bg-white/10 hover:border-white/10'
                       }`}
                     >
+                      <img
+                        src={`/imgs/${level.icon}`}
+                        alt=""
+                        className="w-6 h-6 mb-2 object-contain opacity-90"
+                        onError={(e) => { e.currentTarget.style.display = 'none' }}
+                      />
                       <div className="text-base sm:text-lg font-medium text-white tracking-tighter">
                         {level.title}
                       </div>
@@ -381,53 +407,34 @@ export default function ConfiguratorPage() {
                 </div>
               )}
 
-              {showDetailedCalculation && (
-                <>
-                  <StagesTable
-                    stageDays={stageDays}
-                    originalDays={originalDays}
-                    likeThat={likeThat}
-                    uploadContent={uploadContent}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowDetailedCalculation(false)}
-                    className="text-sm md:text-base opacity-60 hover:opacity-100 transition-opacity tracking-tighter underline mt-4"
-                  >
-                    Hide
-                  </button>
-                </>
-              )}
-
-              {/* Total, Total Cost, Detailed Calculation — в правой колонке */}
+              {/* Investment, Delivery, Detailed Calculation */}
               <div className="mt-10 pt-8 border-t border-white/10 space-y-2">
-                <div className="text-xl md:text-2xl font-medium tracking-tighter opacity-60">
-                  Total: {totalDays} days
-                </div>
-                <div className="space-y-2">
-                  {hasDiscounts ? (
-                    <>
-                      <div className="text-2xl md:text-4xl font-normal price-large flex items-center gap-4">
-                        <span className="line-through opacity-50 text-white/50">${Math.round(baseCost).toLocaleString()}</span>
-                        <span className="text-white">${Math.round(totalCost).toLocaleString()}</span>
-                      </div>
-                      <div className="text-xs md:text-sm opacity-60 tracking-tighter">
-                        {discounts.join(', ')}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-2xl md:text-4xl font-normal price-large">
-                      Total Cost: ${Math.round(totalCost).toLocaleString()}
-                    </div>
+                <div className="text-base md:text-lg opacity-60 tracking-tighter font-normal">
+                  {formatInvestment(totalCost, false)}
+                  {hasDiscounts && paymentUpfront && (
+                    <span className="ml-2">({discounts.join(', ')})</span>
                   )}
+                </div>
+                <div className="text-2xl md:text-3xl font-normal text-white tracking-tighter heading-large">
+                  Delivery in: {totalDays} work days
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowDetailedCalculation(!showDetailedCalculation)}
-                  className="text-sm md:text-base opacity-60 hover:opacity-100 transition-opacity tracking-tighter underline mt-2 block"
+                  className="text-sm md:text-base opacity-60 hover:opacity-100 transition-opacity tracking-tighter underline block"
                 >
                   {showDetailedCalculation ? 'Hide' : 'Detailed Calculation'}
                 </button>
+                {showDetailedCalculation && (
+                  <div className="pt-4">
+                    <StagesTable
+                      stageDays={stageDays}
+                      originalDays={originalDays}
+                      likeThat={likeThat}
+                      uploadContent={uploadContent}
+                    />
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-3 pt-4">
                   {step === 2 && (
                     <button
@@ -452,38 +459,18 @@ export default function ConfiguratorPage() {
         </div>
       ) : (
         <div key="steps3-4" className="grid grid-cols-1 lg:grid-cols-2 w-full min-h-screen lg:h-screen animate-step-in">
-          <div className="flex flex-col h-screen lg:h-full w-full min-h-0 bg-black order-2 lg:order-1">
+          {/* Gallery: on mobile first, 300px; on desktop left full height */}
+          <div className="flex flex-col h-[300px] lg:h-full w-full min-h-0 flex-shrink-0 lg:flex-shrink bg-black order-1 lg:order-1">
             <div className="flex-1 min-h-0 flex flex-col p-2 lg:p-4">
-              <div className="flex-1 min-h-0 relative rounded-lg lg:rounded-xl overflow-hidden bg-white/5 border border-white/10 w-full">
-                <div
-                  className="absolute inset-0 flex transition-transform duration-500 ease-out"
-                  style={{ transform: `translateX(-${galleryIndex * 100}%)` }}
-                >
-                  {[1, 2, 3, 4, 5].map((index) => (
-                    <div key={index} className="flex-shrink-0 w-full h-full">
-                      <AnimationGallerySlot level={animation} index={index} fill16x9 />
-                    </div>
-                  ))}
-                </div>
-                <div className="flex justify-center gap-1.5 py-2 absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent">
-                  {[0, 1, 2, 3, 4].map((i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setGalleryIndex(i)}
-                      className={`w-2 h-2 rounded-full transition-colors ${i === galleryIndex ? 'bg-white' : 'bg-white/40'}`}
-                      aria-label={`Case ${i + 1}`}
-                    />
-                  ))}
-                </div>
+              <div className="flex-1 min-h-0 relative rounded-lg lg:rounded-xl overflow-hidden bg-white/5 border border-white/10 w-full h-full">
+                <AnimationGallerySlot level={animation} index={1} fill16x9 />
               </div>
             </div>
           </div>
-          <div className="flex flex-col h-screen lg:h-full w-full min-h-0 px-6 lg:px-12 lg:pl-10 py-8 lg:py-12 order-1 lg:order-2 overflow-y-auto">
+          <div className={`flex flex-col min-h-0 flex-1 lg:h-full w-full px-6 lg:px-12 lg:pl-10 py-6 lg:py-12 order-2 lg:order-2 ${step === 4 ? 'overflow-hidden' : 'overflow-y-auto'}`}>
             <div className="mb-8">
-              <img src="/imgs/logo.png" alt="Logo" className="h-10 lg:h-12 mb-6" />
               <h1 className="text-3xl md:text-4xl lg:text-5xl font-normal mb-4 heading-large">
-                {step === 3 && (isStep3Increase(searchParams.get('v')) ? 'Increase value' : 'Reduce cost')}
+                {step === 3 && (isStep3Increase(searchParams.get('v')) ? 'Add options' : 'Reduce cost')}
                 {step === 4 && 'Leave a request'}
               </h1>
               <p className="text-base md:text-lg opacity-60 tracking-tighter">
@@ -500,13 +487,22 @@ export default function ConfiguratorPage() {
                   uploadContent={uploadContent}
                   onUploadContentChange={handleUploadContentChange}
                   subscription={subscription}
-                  onSubscriptionChange={setSubscription}
+                  onSubscriptionChange={(v) => {
+                    trackConfiguratorOption('subscription', v)
+                    setSubscription(v)
+                  }}
                   subscriptionLoading={subscriptionLoading}
                   onSubscriptionLoadingChange={setSubscriptionLoading}
                   paymentUpfront={paymentUpfront}
-                  onPaymentUpfrontChange={setPaymentUpfront}
+                  onPaymentUpfrontChange={(v) => {
+                    trackConfiguratorOption('payment_upfront', v)
+                    setPaymentUpfront(v)
+                  }}
                   linkToUs={linkToUs}
-                  onLinkToUsChange={setLinkToUs}
+                  onLinkToUsChange={(v) => {
+                    trackConfiguratorOption('link_to_us', v)
+                    setLinkToUs(v)
+                  }}
                 />
                 {showDetailedCalculation && (
                   <>
@@ -526,21 +522,16 @@ export default function ConfiguratorPage() {
                   </>
                 )}
                 <div className="pt-8 border-t border-white/10 space-y-2">
-                  <div className="text-xl md:text-2xl font-medium tracking-tighter opacity-60">Total: {totalDays} days</div>
-                  <div className="space-y-2">
-                    {hasDiscounts ? (
-                      <>
-                        <div className="text-2xl md:text-4xl font-normal price-large flex items-center gap-4">
-                          <span className="line-through opacity-50 text-white/50">${Math.round(baseCost).toLocaleString()}</span>
-                          <span className="text-white">${Math.round(totalCost).toLocaleString()}</span>
-                        </div>
-                        <div className="text-xs md:text-sm opacity-60 tracking-tighter">{discounts.join(', ')}</div>
-                      </>
-                    ) : (
-                      <div className="text-2xl md:text-4xl font-normal price-large">Total Cost: ${Math.round(totalCost).toLocaleString()}</div>
+                  <div className="text-base md:text-lg opacity-60 tracking-tighter font-normal">
+                    {formatInvestment(totalCost, false)}
+                    {hasDiscounts && paymentUpfront && (
+                      <span className="ml-2">({discounts.join(', ')})</span>
                     )}
                   </div>
-                  <button type="button" onClick={() => setShowDetailedCalculation(!showDetailedCalculation)} className="text-sm md:text-base opacity-60 hover:opacity-100 transition-opacity tracking-tighter underline mt-2 block">
+                  <div className="text-2xl md:text-3xl font-normal text-white tracking-tighter heading-large">
+                    Delivery in: {totalDays} work days
+                  </div>
+                  <button type="button" onClick={() => setShowDetailedCalculation(!showDetailedCalculation)} className="text-sm md:text-base opacity-60 hover:opacity-100 transition-opacity tracking-tighter underline block">
                     {showDetailedCalculation ? 'Hide' : 'Detailed Calculation'}
                   </button>
                   <div className="flex flex-wrap items-center gap-3 pt-4">
@@ -558,16 +549,25 @@ export default function ConfiguratorPage() {
                 </p>
                 <div className="space-y-4 mb-8">
                   {ADDONS.map((addon) => (
-                    <label key={addon.id} className="flex items-start gap-3 cursor-pointer group">
+                    <label
+                      key={addon.id}
+                      className={`flex items-start gap-3 cursor-pointer group addon-option ${selectedAddonIds.has(addon.id) ? 'addon-option-selected' : ''}`}
+                    >
                       <input
                         type="checkbox"
                         checked={selectedAddonIds.has(addon.id)}
                         onChange={() => toggleAddon(addon.id)}
-                        className="mt-1.5 w-4 h-4 rounded border-white/30 bg-white/5 text-white focus:ring-white"
+                        className="mt-1.5 w-4 h-4 flex-shrink-0 rounded border-white/30 bg-white/5 text-white focus:ring-white"
+                      />
+                      <img
+                        src={`/imgs/${addon.icon}`}
+                        alt=""
+                        className="w-6 h-6 flex-shrink-0 mt-0.5 object-contain opacity-90"
+                        onError={(e) => { e.currentTarget.style.display = 'none' }}
                       />
                       <div className="flex-1 min-w-0">
                         <span className="text-base md:text-lg font-medium text-white tracking-tighter">
-                          +${addon.price.toLocaleString()} — {addon.title}
+                          +${(config.addonPrices[addon.id] ?? addon.price).toLocaleString()} — {addon.title}
                         </span>
                         <p className="text-sm opacity-60 tracking-tighter mt-0.5">{addon.description}</p>
                       </div>
@@ -575,10 +575,25 @@ export default function ConfiguratorPage() {
                   ))}
                 </div>
                 <div className="pt-8 border-t border-white/10 space-y-2">
-                  <div className="text-xl md:text-2xl font-medium tracking-tighter opacity-60">Total: {totalDays} days</div>
-                  <div className="text-2xl md:text-4xl font-normal price-large">
-                    Total Cost: ${Math.round(totalCost + addonsTotal).toLocaleString()}
+                  <div className="text-base md:text-lg opacity-60 tracking-tighter font-normal">
+                    {formatInvestment(totalCost + addonsTotal, selectedAddonIds.has('installments'))}
                   </div>
+                  <div className="text-2xl md:text-3xl font-normal text-white tracking-tighter heading-large">
+                    Delivery in: {totalDays} work days
+                  </div>
+                  <button type="button" onClick={() => setShowDetailedCalculation(!showDetailedCalculation)} className="text-sm md:text-base opacity-60 hover:opacity-100 transition-opacity tracking-tighter underline block">
+                    {showDetailedCalculation ? 'Hide' : 'Detailed Calculation'}
+                  </button>
+                  {showDetailedCalculation && (
+                    <div className="pt-4">
+                      <StagesTable
+                        stageDays={stageDays}
+                        originalDays={originalDays}
+                        likeThat={likeThat}
+                        uploadContent={uploadContent}
+                      />
+                    </div>
+                  )}
                   <div className="flex flex-wrap items-center gap-3 pt-4">
                     <button type="button" onClick={() => goToStep(2)} className="flex-1 min-w-0 md:flex-initial px-6 py-4 bg-white/10 text-white text-base font-medium rounded-lg hover:bg-white/15 transition-colors duration-200 tracking-tighter">Back</button>
                     <button type="button" onClick={() => goToStep(4)} className="flex-1 min-w-0 md:flex-initial px-8 py-4 bg-white text-black text-base font-medium rounded-lg hover:bg-neutral-100 active:bg-neutral-200 transition-colors duration-200 tracking-tighter">{nextStepLabel ? `Next: ${nextStepLabel}` : 'Next step'}</button>
@@ -588,7 +603,7 @@ export default function ConfiguratorPage() {
             )}
 
             {step === 4 && (
-              <div className="space-y-8 max-w-2xl">
+              <div className="flex flex-col flex-1 min-h-0 max-w-2xl overflow-visible">
             {requestSubmitted ? (
               <div className="text-center py-12">
                 <div className="mb-6">
@@ -604,40 +619,85 @@ export default function ConfiguratorPage() {
             ) : (
               <>
                 <form
-                  onSubmit={(e) => {
+                  onSubmit={async (e) => {
                     e.preventDefault()
+                    setSubmitError(null)
+                    setSubmitting(true)
+                    const form = e.currentTarget
+                    const name = (form.elements.namedItem('name') as HTMLInputElement)?.value?.trim() ?? ''
+                    const email = (form.elements.namedItem('email') as HTMLInputElement)?.value?.trim() ?? ''
+                    const goal = `${SITE_TYPES[siteTypeIndex].title} (${pages} pages)`
+                    const scopeLabel = getAnimationLabel(animation)
+                    const reduceOptionsList: string[] = []
+                    if (likeThat) reduceOptionsList.push('Conduct research yourself')
+                    if (uploadContent) reduceOptionsList.push('Upload content yourself')
+                    if (subscription) reduceOptionsList.push(`Subscription −${100 - config.subscriptionPct}%`)
+                    if (paymentUpfront) reduceOptionsList.push(`Pay upfront −${100 - config.upfrontPct}%`)
+                    if (linkToUs) reduceOptionsList.push(`Link to us −${100 - config.linkPct}%`)
+                    const addonsList = ADDONS.filter((a) => selectedAddonIds.has(a.id)).map(
+                      (a) => `${a.title} +$${(config.addonPrices[a.id] ?? a.price).toLocaleString()}`
+                    )
+                    const fullSummary = [
+                      `Date: ${new Date().toLocaleString()}`,
+                      `Name: ${name}`,
+                      `Email: ${email}`,
+                      `Goal: ${goal}`,
+                      `Scope: ${scopeLabel}`,
+                      `Step 3: ${step3Version === 'reduce' ? 'Reduce cost' : 'Add options'}`,
+                      step3Version === 'reduce' ? `Reduce options: ${reduceOptionsList.join(', ') || '—'}` : `Addons: ${addonsList.join(', ') || '—'}`,
+                      `Total: ${totalDays} work days, $${Math.round(summaryTotalCost).toLocaleString()}`,
+                    ].join('\n')
+                    const payload: LeadPayload = {
+                      goal,
+                      scope: scopeLabel,
+                      step3Type: step3Version,
+                      reduceOptions: reduceOptionsList,
+                      addons: addonsList,
+                      totalDays,
+                      totalCost: Math.round(summaryTotalCost),
+                      fullSummary,
+                    }
+                    const { ok, error } = await submitLead(name, email, payload)
+                    setSubmitting(false)
+                    if (!ok) {
+                      setSubmitError(error ?? 'Failed to send')
+                      return
+                    }
+                    trackConfiguratorLead({ total_days: totalDays, total_cost: Math.round(summaryTotalCost) })
                     setRequestSubmitted(true)
                   }}
-                  className="space-y-6"
+                  className="flex flex-col flex-1 min-h-0 overflow-visible"
                 >
-                  <div className="space-y-4">
-                    <label className="block">
-                      <span className="text-sm opacity-60 tracking-tighter block mb-1.5">Enter your name</span>
-                      <input
-                        type="text"
-                        required
-                        name="name"
-                        className="w-full px-4 py-3 bg-white/5 rounded-lg text-white placeholder:text-white/40 tracking-tighter border border-transparent hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent [&:not(:placeholder-shown)]:border-white/30 transition-colors"
-                        placeholder="Sam Altman"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-sm opacity-60 tracking-tighter block mb-1.5">Enter your email</span>
-                      <input
-                        type="email"
-                        required
-                        name="email"
-                        className="w-full px-4 py-3 bg-white/5 rounded-lg text-white placeholder:text-white/40 tracking-tighter border border-transparent hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent [&:not(:placeholder-shown)]:border-white/30 transition-colors"
-                        placeholder="sam@openai.com"
-                      />
-                    </label>
+                  <div className="flex-1 min-h-0 overflow-visible">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                      <label className="block min-w-0 overflow-visible">
+                        <span className="text-sm opacity-60 tracking-tighter block mb-1.5">Enter your name</span>
+                        <input
+                          type="text"
+                          required
+                          name="name"
+                          className="w-full px-4 py-3 bg-white/5 rounded-lg text-white placeholder:text-white/25 tracking-tighter border border-transparent hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent [&:not(:placeholder-shown)]:border-white/30 transition-colors"
+                          placeholder="Sam Altman"
+                        />
+                      </label>
+                      <label className="block min-w-0 overflow-visible">
+                        <span className="text-sm opacity-60 tracking-tighter block mb-1.5">Enter your email</span>
+                        <input
+                          type="email"
+                          required
+                          name="email"
+                          className="w-full px-4 py-3 bg-white/5 rounded-lg text-white placeholder:text-white/25 tracking-tighter border border-transparent hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent [&:not(:placeholder-shown)]:border-white/30 transition-colors"
+                          placeholder="sam@openai.com"
+                        />
+                      </label>
+                    </div>
                   </div>
 
-                  <div className="py-6 border-t border-white/10 space-y-4">
-                    <div className="text-base md:text-lg opacity-60 tracking-tighter">
-                      Investment: ${Math.round(summaryTotalCost).toLocaleString()}
+                  <div className="flex-shrink-0 pt-6 border-t border-white/10 space-y-2">
+                    <div className="text-base md:text-lg opacity-60 tracking-tighter font-normal">
+                      {formatInvestment(summaryTotalCost, showPaymentSplit)}
                     </div>
-                    <div className="text-2xl md:text-3xl font-normal text-white tracking-tighter">
+                    <div className="text-2xl md:text-3xl font-normal text-white tracking-tighter heading-large">
                       Delivery in: {totalDays} work days
                     </div>
                     <button
@@ -648,7 +708,7 @@ export default function ConfiguratorPage() {
                       Detailed Calculation
                     </button>
                     {showDetailedCalculation && (
-                      <div className="pt-4">
+                      <div className="pt-4 max-h-40 overflow-y-auto">
                         <StagesTable
                           stageDays={stageDays}
                           originalDays={originalDays}
@@ -664,29 +724,39 @@ export default function ConfiguratorPage() {
                         </button>
                       </div>
                     )}
-                  </div>
-
-                  <div className="flex flex-nowrap items-center gap-3 pt-2 overflow-x-auto">
-                    <button
-                      type="button"
-                      onClick={() => goToStep(3)}
-                      className="flex-shrink-0 px-6 py-4 bg-white/10 text-white text-base font-medium rounded-lg hover:bg-white/15 transition-colors duration-200 tracking-tighter"
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="submit"
-                      className="flex-shrink-0 px-6 py-4 bg-white/10 text-white text-base font-medium rounded-lg hover:bg-white/15 transition-colors duration-200 tracking-tighter"
-                    >
-                      Get proposal to email
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRequestSubmitted(true)}
-                      className="flex-shrink-0 px-8 py-4 bg-white text-black text-base font-medium rounded-lg hover:bg-neutral-100 active:bg-neutral-200 transition-colors duration-200 tracking-tighter"
-                    >
-                      Book a 30-minute discovery call
-                    </button>
+                    <div className="flex flex-col md:flex-row gap-3 pt-4">
+                      <button
+                        type="button"
+                        onClick={() => goToStep(3)}
+                        className="order-2 md:order-1 w-full md:w-auto flex-shrink-0 px-6 py-4 bg-white/10 text-white text-base font-medium rounded-lg hover:bg-white/15 transition-colors duration-200 tracking-tighter"
+                      >
+                        Back
+                      </button>
+                      {submitError && (
+                      <p className="text-sm text-red-400 tracking-tighter order-first md:order-none col-span-2 md:col-span-1">
+                        {submitError}
+                      </p>
+                    )}
+                    <div className="grid grid-cols-2 md:flex gap-3 order-1 md:order-2">
+                        <button
+                          type="submit"
+                          disabled={submitting}
+                          className="w-full min-w-0 px-4 md:px-6 py-4 bg-white/10 text-white text-base font-medium rounded-lg hover:bg-white/15 transition-colors duration-200 tracking-tighter disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {submitting ? 'Sending…' : 'Get proposal to email'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            trackConfiguratorBookCall()
+                            setRequestSubmitted(true)
+                          }}
+                          className="w-full min-w-0 px-4 md:px-8 py-4 bg-white text-black text-base font-medium rounded-lg hover:bg-neutral-100 active:bg-neutral-200 transition-colors duration-200 tracking-tighter"
+                        >
+                          Book a 30-minute discovery call
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </form>
               </>
@@ -697,7 +767,7 @@ export default function ConfiguratorPage() {
         </div>
       )}
 
-      {/* Fixed footer убран — Total/Cost в правой колонке на всех шагах */}
+      {/* Fixed footer removed — Total/Cost in right column on all steps */}
       {false && step === 3 && (
       <div className="fixed bottom-0 left-0 right-0 pt-16 pb-6 pointer-events-none" style={{
         background: 'linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.95) 30%, rgba(0,0,0,0.8) 60%, rgba(0,0,0,0.4) 85%, rgba(0,0,0,0) 100%)'

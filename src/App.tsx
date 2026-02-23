@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 import ConfiguratorPage from './pages/ConfiguratorPage'
@@ -5,7 +6,29 @@ import ConfiguratorConfigPage from './pages/ConfiguratorConfigPage'
 import ProjectsPage from './pages/ProjectsPage'
 import LikeThatPage from './pages/LikeThatPage'
 
-/** Редирект со старых путей на один адрес с ?step=N (сохраняем query). */
+const FB_PIXEL_ID = import.meta.env.VITE_FB_PIXEL_ID as string | undefined
+
+/** Initialize Facebook Pixel when VITE_FB_PIXEL_ID is set in .env */
+function useFacebookPixel() {
+  useEffect(() => {
+    if (!FB_PIXEL_ID || typeof window === 'undefined') return
+    if ((window as unknown as { fbq?: unknown }).fbq) return
+    const s = document.createElement('script')
+    s.async = true
+    s.src = 'https://connect.facebook.net/en_US/fbevents.js'
+    s.onload = () => {
+      try {
+        ;(window as unknown as { fbq: (a: string, b: string) => void }).fbq('init', FB_PIXEL_ID!)
+        ;(window as unknown as { fbq: (a: string, b: string) => void }).fbq('track', 'PageView')
+      } catch {
+        // ignore
+      }
+    }
+    document.head.appendChild(s)
+  }, [])
+}
+
+/** Redirect from old paths to single URL with ?step=N (preserve query). */
 function RedirectToStep({ step }: { step: number }) {
   const location = useLocation()
   const sp = new URLSearchParams(location.search)
@@ -15,6 +38,7 @@ function RedirectToStep({ step }: { step: number }) {
 }
 
 function App() {
+  useFacebookPixel()
   return (
     <BrowserRouter>
       <Routes>

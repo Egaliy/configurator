@@ -1,6 +1,34 @@
 # Инструкция по деплою на VPS
 
-## Шаги для загрузки на VPS:
+## Автоматический деплой (GitHub Actions)
+
+При пуше в ветку `main` проект собирается и выгружается на VPS через `.github/workflows/deploy.yml`.
+
+### Настройка один раз
+
+1. **Создай SSH-ключ для деплоя** (если ещё нет отдельного):
+   ```bash
+   ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/configurator_deploy -N ""
+   ```
+
+2. **Добавь публичный ключ на VPS:**
+   ```bash
+   ssh-copy-id -i ~/.ssh/configurator_deploy.pub root@130.49.149.162
+   ```
+   Либо вручную: скопируй содержимое `~/.ssh/configurator_deploy.pub` и добавь в `~/.ssh/authorized_keys` на сервере.
+
+3. **Секреты в GitHub:** репозиторий → Settings → Secrets and variables → Actions → New repository secret:
+   - `VPS_HOST` = `130.49.149.162`
+   - `VPS_USER` = `root`
+   - `VPS_SSH_PRIVATE_KEY` = весь текст из файла `~/.ssh/configurator_deploy` (приватный ключ, включая строки `-----BEGIN ... KEY-----` и `-----END ... KEY-----`)
+
+4. По желанию: секрет `VPS_REMOTE_DIR` (по умолчанию `/var/www/configurator`).
+
+После этого каждый `git push origin main` запускает сборку и выгрузку на VPS.
+
+---
+
+## Ручная загрузка на VPS
 
 ### 1. Установите sshpass (если еще не установлен):
 ```bash

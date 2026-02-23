@@ -8,29 +8,29 @@ interface TimelineProps {
   canEdit?: boolean
   onStageChange?: (stageId: string, patch: Partial<Pick<Stage, 'startDate' | 'endDate'>>) => void
   onEventChange?: (eventId: string, patch: { date: string }) => void
-  /** Открыть панель этапа по клику (не срабатывает после драга) */
+  /** Open stage panel on click (no trigger after drag) */
   onStageOpen?: (stageId: string) => void
-  /** Поменять порядок этапа в списке (вверх/вниз) */
+  /** Change stage order in list (up/down) */
   onStageReorder?: (stageId: string, direction: 'up' | 'down') => void
-  /** Удалить этап (вызывается при отпускании в зоне «удалить» при драге вверх) */
+  /** Delete stage (called when dropped in delete zone while dragging up) */
   onStageDelete?: (stageId: string) => void
-  /** Слот справа в одном ряду с заголовком (например кнопка добавления) */
+  /** Slot on the right in same row as header (e.g. add button) */
   headerAction?: React.ReactNode
-  /** Растянуть область таймлайна на всю доступную высоту */
+  /** Stretch timeline area to full available height */
   fillHeight?: boolean
-  /** Проскроллить к этапу (плавно) и вызвать onScrollToStageIdDone после */
+  /** Scroll to stage (smooth) and call onScrollToStageIdDone after */
   scrollToStageId?: string | null
   onScrollToStageIdDone?: () => void
 }
 
 const BASE_PX_PER_DAY = 80
 const ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const
-const DEFAULT_ZOOM_INDEX = 2 // 1 = неделя по умолчанию
+const DEFAULT_ZOOM_INDEX = 2 // 1 = default week
 const ROW_HEIGHT = 56
 const HEADER_HEIGHT = 64
-/** Чёрный градиент как на карточке конфигуратора */
+/** Black gradient like configurator card */
 const CARD_BLACK_GRADIENT = 'linear-gradient(135deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.88) 40%, rgba(0,0,0,0.82) 100%)'
-/** Узкие градиенты по краям (даты и блоки под ними) */
+/** Narrow gradients at edges (dates and blocks below) */
 const EDGE_GRADIENT_WIDTH = 40
 const LEFT_EDGE_GRADIENT = `linear-gradient(to right, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)`
 const RIGHT_EDGE_GRADIENT = `linear-gradient(to left, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)`
@@ -39,7 +39,7 @@ const BOTTOM_STRIPE_GRADIENT = 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgb
 const TRANSITION_FAST = '0.15s ease-out'
 const TRANSITION_NORMAL = '0.25s ease-out'
 
-/** Заливка и «неактивность» этапа: прошедшие — серые неактивные, текущий ярче, будущие нейтрально */
+/** Stage fill and inactive state: past — gray inactive, current brighter, future neutral */
 function stageBlockStyle(stage: Stage, todayTime: number): { backgroundColor: string; opacity?: number } {
   const start = new Date(stage.startDate).setHours(0, 0, 0, 0)
   const end = new Date(stage.endDate).setHours(0, 0, 0, 0)
@@ -94,7 +94,7 @@ export default function Timeline({ stages, events, canEdit, onStageChange, onEve
   const [draggingStageId, setDraggingStageId] = useState<string | null>(null)
   const [draggingEventId, setDraggingEventId] = useState<string | null>(null)
   const [dragMoveOffsetPx, setDragMoveOffsetPx] = useState(0)
-  /** После отпускания: плавное притягивание к сетке дней */
+  /** After release: smooth snap to day grid */
   const [postMoveSnapStageId, setPostMoveSnapStageId] = useState<string | null>(null)
   const [postMoveSnapOffsetPx, setPostMoveSnapOffsetPx] = useState(0)
   const [resizingStageId, setResizingStageId] = useState<string | null>(null)
@@ -166,7 +166,7 @@ export default function Timeline({ stages, events, canEdit, onStageChange, onEve
     onScrollToStageIdDone()
   }, [scrollToStageId, onScrollToStageIdDone, stages.length])
 
-  // Плавное притягивание к сетке после отпускания этапа
+  // Smooth snap to grid after stage release
   useEffect(() => {
     if (!postMoveSnapStageId) return
     const raf = requestAnimationFrame(() => {
@@ -205,7 +205,7 @@ export default function Timeline({ stages, events, canEdit, onStageChange, onEve
         deleteZoneActiveRef.current = inDeleteZone
         setDeleteZoneActive(inDeleteZone)
       } else {
-        // resize: только визуальный offset, state обновим в mouseup
+        // resize: visual offset only, state updated on mouseup
         lastMoveClientXRef.current = e.clientX
         setDragResizeOffsetPx(e.clientX - d.startX)
       }
@@ -227,7 +227,7 @@ export default function Timeline({ stages, events, canEdit, onStageChange, onEve
           endDate: addDaysToDate(d.startEnd, totalDeltaDays),
         })
       }
-      // Остаток в пикселях: плавно притянем к сетке
+      // Remainder in pixels: smooth snap to grid
       const snapOffsetPx = lastMoveOffsetPxRef.current - totalDeltaDays * pxPerDay
       if (Math.abs(snapOffsetPx) > 0.5) {
         setPostMoveSnapStageId(d.stageId)
@@ -306,7 +306,7 @@ export default function Timeline({ stages, events, canEdit, onStageChange, onEve
   const dataMin = new Date(Math.min(...allDates.map((d) => d.getTime())))
   const dataMax = new Date(Math.max(...allDates.map((d) => d.getTime())))
   const DEFAULT_DAYS = 7
-  // По умолчанию окно 7 дней: 3 до сегодня, сегодня, 3 после
+  // Default 7-day window: 3 before today, today, 3 after
   const openLeftDate = new Date(today)
   openLeftDate.setDate(openLeftDate.getDate() - 3)
   const openRightDate = new Date(today)
@@ -445,7 +445,7 @@ export default function Timeline({ stages, events, canEdit, onStageChange, onEve
               height: HEADER_HEIGHT + stages.length * ROW_HEIGHT,
             }}
           >
-            {/* Заголовок: дни; сегодня — выделенная ячейка без вертикальной линии */}
+            {/* Header: days; today — highlighted cell without vertical line */}
             <div
               className="flex bg-black"
               style={{ height: HEADER_HEIGHT }}
@@ -467,7 +467,7 @@ export default function Timeline({ stages, events, canEdit, onStageChange, onEve
               })}
             </div>
 
-            {/* Строки этапов: блок + события этого этапа */}
+            {/* Stage rows: block + events for that stage */}
             {stages.map((stage) => {
               const start = parseDate(stage.startDate)
               const end = parseDate(stage.endDate)
@@ -478,7 +478,7 @@ export default function Timeline({ stages, events, canEdit, onStageChange, onEve
               const left = leftForDate(start)
               const width = baseWidth
               const stageEvents = events.filter((e) => e.stageId === stage.id)
-              // Этапы, начинающиеся левее видимой области: показываем только видимую часть
+              // Stages starting left of visible area: show only visible part
               const blockLeft = Math.max(0, left)
               const visibleWidth = left < 0 ? width + left : width
               const blockWidth = Math.min(Math.max(visibleWidth, 0), totalWidth - blockLeft)
@@ -561,7 +561,7 @@ export default function Timeline({ stages, events, canEdit, onStageChange, onEve
                       </div>
                     )}
                   </div>
-                  {/* События пока отключены */}
+                  {/* Events disabled for now */}
                   {false &&
                     stageEvents.map((ev) => {
                       const evLeft = leftForDate(parseDate(ev.date)) + pxPerDay / 2
@@ -609,7 +609,7 @@ export default function Timeline({ stages, events, canEdit, onStageChange, onEve
             aria-hidden
           />
         )}
-        {/* Полоски по краям только когда есть скрытый контент */}
+        {/* Edge strips only when there is hidden content */}
         {horizontalOverflow.left && (
           <div
             className="absolute top-0 bottom-0 left-0 pointer-events-none z-10 transition-opacity duration-200"

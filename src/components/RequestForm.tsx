@@ -19,7 +19,7 @@ export default function RequestForm({ isOpen, onClose, totalCost, totalDays }: R
   }, [isOpen])
 
   const handleClose = useCallback(() => {
-    if (isClosing) return // Предотвращаем множественные вызовы
+    if (isClosing) return // Prevent multiple calls
     setIsClosing(true)
     setTimeout(() => {
       setIsClosing(false)
@@ -49,7 +49,7 @@ export default function RequestForm({ isOpen, onClose, totalCost, totalDays }: R
     console.log('Form submitted')
     setIsSubmitted(true)
     
-    // Автоматически закрыть попап через 3 секунды
+    // Auto-close popup after 3 seconds
     setTimeout(() => {
       handleClose()
     }, 3000)

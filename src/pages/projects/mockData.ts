@@ -6,11 +6,11 @@ export interface Stage {
   startDate: string
   endDate: string
   status: StageStatus
-  /** Описание/наполнение этапа: админы редактируют, гости читают */
+  /** Stage description/content: admins edit, guests read */
   description?: string
 }
 
-/** Мгновенное событие (встреча, ревью) — одна точка на оси времени, привязана к этапу */
+/** Instant event (meeting, review) — single point on timeline, tied to a stage */
 export interface TimelineEvent {
   id: string
   title: string
@@ -89,7 +89,7 @@ export function formatCommentDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-/** Добавить days к дате YYYY-MM-DD, вернуть YYYY-MM-DD */
+/** Add days to date YYYY-MM-DD, return YYYY-MM-DD */
 export function addDaysToDate(dateStr: string, days: number): string {
   const d = new Date(dateStr)
   d.setDate(d.getDate() + days)
