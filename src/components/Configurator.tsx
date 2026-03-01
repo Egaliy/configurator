@@ -77,7 +77,8 @@ export default function Configurator({
         </div>
       </label>
 
-      {/* Subscription Option */}
+      {/* Subscription Option — temporarily hidden */}
+      {false && (
       <div className="border border-white/10 rounded-lg p-8">
         <div className="space-y-6">
             <div className="text-base md:text-lg font-medium tracking-tighter">
@@ -111,6 +112,7 @@ export default function Configurator({
           </div>
         </div>
       </div>
+      )}
 
       {/* Link to Us Toggle */}
       <label className="flex items-center gap-4 cursor-pointer group">

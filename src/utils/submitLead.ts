@@ -12,6 +12,7 @@ export interface LeadPayload {
   addons: string[]
   totalDays: number
   totalCost: number
+  preferredContact: string
   fullSummary: string
 }
 
@@ -31,6 +32,7 @@ export async function submitLead(name: string, email: string, payload: LeadPaylo
     total_cost: payload.totalCost,
     reduce_options: payload.reduceOptions.length ? payload.reduceOptions.join('; ') : '—',
     addons: payload.addons.length ? payload.addons.join('; ') : '—',
+    preferred_contact: payload.preferredContact,
     _full_summary: payload.fullSummary,
   }
 

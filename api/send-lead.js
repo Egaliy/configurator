@@ -30,6 +30,7 @@ function formatLead(body) {
     '',
     `<b>Name:</b> ${d.name || '—'}`,
     `<b>Email:</b> ${d.email || '—'}`,
+    `<b>Preferred:</b> ${d.preferred_contact || '—'}`,
     `<b>Submitted:</b> ${d.submitted_at || new Date().toISOString()}`,
     '',
     `<b>Goal:</b> ${d.goal || '—'}`,
@@ -39,8 +40,6 @@ function formatLead(body) {
     `<b>Addons:</b> ${d.addons || '—'}`,
     '',
     `<b>Total:</b> ${d.total_days ?? '—'} work days, $${(d.total_cost ?? 0).toLocaleString()}`,
-    '',
-    (d._full_summary || '').slice(0, 500),
   ]
   return lines.join('\n')
 }

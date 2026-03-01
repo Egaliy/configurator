@@ -173,6 +173,37 @@ export default function ConfiguratorPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [selectedAddonIds, setSelectedAddonIds] = useState<Set<string>>(new Set())
+  /** Call date/time (step 4) */
+  const callDateOptions = useMemo(() => {
+    const out: { value: string; label: string }[] = []
+    const today = new Date()
+    for (let i = 0; i < 14; i++) {
+      const d = new Date(today)
+      d.setDate(d.getDate() + i)
+      out.push({
+        value: d.toISOString().slice(0, 10),
+        label: d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }),
+      })
+    }
+    return out
+  }, [])
+  const callTimeOptions = useMemo(() => {
+    const out: { value: string; label: string }[] = []
+    for (let h = 9; h <= 18; h++) {
+      for (const m of [0, 30]) {
+        if (h === 18 && m === 30) break
+        out.push({
+          value: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+          label: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+        })
+      }
+    }
+    return out
+  }, [])
+  const [callDate, setCallDate] = useState(() => callDateOptions[0]?.value ?? '')
+  const [callTime, setCallTime] = useState(() => callTimeOptions[0]?.value ?? '')
+  /** Request mode on step 4: email (default) or book call */
+  const [requestMode, setRequestMode] = useState<'email' | 'call'>('email')
 
   const baseDays = calculateStageDays(pages, animation, config.baseDaysPerPage)
   const [originalDays, setOriginalDays] = useState<StageDays>(baseDays)
@@ -637,10 +668,12 @@ export default function ConfiguratorPage() {
                     const addonsList = ADDONS.filter((a) => selectedAddonIds.has(a.id)).map(
                       (a) => `${a.title} +$${(config.addonPrices[a.id] ?? a.price).toLocaleString()}`
                     )
+                    const preferredContact = requestMode === 'email' ? 'Get proposal to email' : `Book call: ${callDate} ${callTime}`
                     const fullSummary = [
                       `Date: ${new Date().toLocaleString()}`,
                       `Name: ${name}`,
                       `Email: ${email}`,
+                      `Preferred: ${preferredContact}`,
                       `Goal: ${goal}`,
                       `Scope: ${scopeLabel}`,
                       `Step 3: ${step3Version === 'reduce' ? 'Reduce cost' : 'Add options'}`,
@@ -655,6 +688,7 @@ export default function ConfiguratorPage() {
                       addons: addonsList,
                       totalDays,
                       totalCost: Math.round(summaryTotalCost),
+                      preferredContact,
                       fullSummary,
                     }
                     const { ok, error } = await submitLead(name, email, payload)
@@ -664,6 +698,7 @@ export default function ConfiguratorPage() {
                       return
                     }
                     trackConfiguratorLead({ total_days: totalDays, total_cost: Math.round(summaryTotalCost) })
+                    if (requestMode === 'call') trackConfiguratorBookCall()
                     setRequestSubmitted(true)
                   }}
                   className="flex flex-col flex-1 min-h-0 overflow-visible"
@@ -691,6 +726,62 @@ export default function ConfiguratorPage() {
                         />
                       </label>
                     </div>
+
+                    <div className="mb-6">
+                      <span className="text-sm opacity-60 tracking-tighter block mb-3">How would you like to proceed?</span>
+                      <div className="flex flex-col sm:flex-row gap-4">
+                        <label className="flex items-center gap-2.5 cursor-pointer group">
+                          <input
+                            type="radio"
+                            name="requestMode"
+                            checked={requestMode === 'email'}
+                            onChange={() => setRequestMode('email')}
+                            className="w-3.5 h-3.5 rounded-full border border-white/40 bg-transparent text-white accent-white focus:ring-1 focus:ring-white/50 focus:ring-offset-0 focus:outline-none cursor-pointer"
+                          />
+                          <span className="text-sm tracking-tighter text-white/90">Get proposal to email</span>
+                        </label>
+                        <label className="flex items-center gap-2.5 cursor-pointer group">
+                          <input
+                            type="radio"
+                            name="requestMode"
+                            checked={requestMode === 'call'}
+                            onChange={() => setRequestMode('call')}
+                            className="w-3.5 h-3.5 rounded-full border border-white/40 bg-transparent text-white accent-white focus:ring-1 focus:ring-white/50 focus:ring-offset-0 focus:outline-none cursor-pointer"
+                          />
+                          <span className="text-sm tracking-tighter text-white/90">Book 30-min call</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {requestMode === 'call' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <label className="block min-w-0">
+                          <span className="text-sm opacity-60 tracking-tighter block mb-1.5">Call date</span>
+                          <input
+                            type="date"
+                            value={callDate}
+                            min={callDateOptions[0]?.value}
+                            max={callDateOptions[callDateOptions.length - 1]?.value}
+                            onChange={(e) => setCallDate(e.target.value)}
+                            className="w-full px-4 py-3 bg-white/5 rounded-lg text-white tracking-tighter border border-white/10 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent transition-colors [color-scheme:dark]"
+                          />
+                        </label>
+                        <label className="block min-w-0">
+                          <span className="text-sm opacity-60 tracking-tighter block mb-1.5">Call time</span>
+                          <select
+                            value={callTime}
+                            onChange={(e) => setCallTime(e.target.value)}
+                            className="w-full px-4 py-3 bg-white/5 rounded-lg text-white tracking-tighter border border-white/10 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent transition-colors"
+                          >
+                            {callTimeOptions.map((opt) => (
+                              <option key={opt.value} value={opt.value} className="bg-neutral-900 text-white">
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex-shrink-0 pt-6 border-t border-white/10 space-y-2">
@@ -724,6 +815,7 @@ export default function ConfiguratorPage() {
                         </button>
                       </div>
                     )}
+
                     <div className="flex flex-col md:flex-row gap-3 pt-4">
                       <button
                         type="button"
@@ -737,23 +829,13 @@ export default function ConfiguratorPage() {
                         {submitError}
                       </p>
                     )}
-                    <div className="grid grid-cols-2 md:flex gap-3 order-1 md:order-2">
+                    <div className="grid grid-cols-1 md:flex gap-3 order-1 md:order-2 flex-1 min-w-0">
                         <button
                           type="submit"
                           disabled={submitting}
-                          className="w-full min-w-0 px-4 md:px-6 py-4 bg-white/10 text-white text-base font-medium rounded-lg hover:bg-white/15 transition-colors duration-200 tracking-tighter disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full min-w-0 px-4 md:px-8 py-4 bg-white text-black text-base font-medium rounded-lg hover:bg-neutral-100 active:bg-neutral-200 transition-colors duration-200 tracking-tighter disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {submitting ? 'Sending…' : 'Get proposal to email'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            trackConfiguratorBookCall()
-                            setRequestSubmitted(true)
-                          }}
-                          className="w-full min-w-0 px-4 md:px-8 py-4 bg-white text-black text-base font-medium rounded-lg hover:bg-neutral-100 active:bg-neutral-200 transition-colors duration-200 tracking-tighter"
-                        >
-                          Book a 30-minute discovery call
+                          {submitting ? 'Sending…' : 'Send'}
                         </button>
                       </div>
                     </div>
