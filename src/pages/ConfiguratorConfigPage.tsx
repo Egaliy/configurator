@@ -5,6 +5,7 @@ import {
   DEFAULT_RATE_REDUCE,
   DEFAULT_RATE_INCREASE,
   DEFAULT_SITE_PAGES,
+  DEFAULT_TOTAL_DAYS_BY_SITE_TYPE,
   DEFAULT_BASE_DAYS_PER_PAGE,
   DEFAULT_LIKE_THAT_DAYS,
   DEFAULT_UPLOAD_CONTENT_DAYS,
@@ -19,12 +20,12 @@ type Preset = '0' | '1'
 type Version = '0' | '1'
 type Theme = 'light' | 'dark'
 
-const SITE_NAMES = ['Promo (1 page)', 'SaaS (3–5)', 'Corporate (5–9)', 'Enterprise (15–30)']
-const ADDON_IDS = ['research', 'copywriting', 'secret', 'installments'] as const
+const SITE_NAMES = ['Promo (1 page)', 'SaaS (5–7)', 'Corporate (15 days)', 'Enterprise (25–30)']
+const ADDON_IDS = ['research', 'copywriting', 'publication', 'installments'] as const
 const ADDON_LABELS: Record<string, string> = {
   research: 'Extensive Research',
   copywriting: 'Professional Copywriting',
-  secret: 'Keep it secret',
+  publication: 'Allow publication (−$500)',
   installments: 'Pay in installments',
 }
 
@@ -65,6 +66,7 @@ export default function ConfiguratorConfigPage() {
   const [rateReduce, setRateReduce] = useState(String(DEFAULT_RATE_REDUCE))
   const [rateIncrease, setRateIncrease] = useState(String(DEFAULT_RATE_INCREASE))
   const [sitePages, setSitePages] = useState<string[]>(DEFAULT_SITE_PAGES.map(String))
+  const [totalDaysBySiteType, setTotalDaysBySiteType] = useState<string[]>(DEFAULT_TOTAL_DAYS_BY_SITE_TYPE.map(String))
   const [baseDaysPerPage, setBaseDaysPerPage] = useState(String(DEFAULT_BASE_DAYS_PER_PAGE))
   const [likeThatDays, setLikeThatDays] = useState(String(DEFAULT_LIKE_THAT_DAYS))
   const [uploadContentDays, setUploadContentDays] = useState(String(DEFAULT_UPLOAD_CONTENT_DAYS))
@@ -79,6 +81,7 @@ export default function ConfiguratorConfigPage() {
     rateReduce: parseNum(rateReduce, defaultConfig.rateReduce),
     rateIncrease: parseNum(rateIncrease, defaultConfig.rateIncrease),
     sitePages: Array.from({ length: 4 }, (_, i) => parseNum(sitePages[i] ?? '', defaultConfig.sitePages[i] ?? 1)),
+    totalDaysBySiteType: Array.from({ length: 4 }, (_, i) => parseNum(totalDaysBySiteType[i] ?? '', defaultConfig.totalDaysBySiteType[i] ?? 3)),
     baseDaysPerPage: parseNum(baseDaysPerPage, defaultConfig.baseDaysPerPage),
     likeThatDays: parseNum(likeThatDays, defaultConfig.likeThatDays),
     uploadContentDays: parseNum(uploadContentDays, defaultConfig.uploadContentDays),
@@ -86,7 +89,7 @@ export default function ConfiguratorConfigPage() {
     upfrontPct: Math.min(100, Math.max(0, parseNum(upfrontPct, defaultConfig.upfrontPct))),
     linkPct: Math.min(100, Math.max(0, parseNum(linkPct, defaultConfig.linkPct))),
     addonPrices: Object.fromEntries(
-      ADDON_IDS.map((id) => [id, parseNum(addonPrices[id] ?? '', defaultConfig.addonPrices[id] ?? 0)])
+      ADDON_IDS.map((id) => [id, parseNumSigned(addonPrices[id] ?? '', defaultConfig.addonPrices[id] ?? 0)])
     ),
   })
 
@@ -94,6 +97,12 @@ export default function ConfiguratorConfigPage() {
     if (s === '') return fallback
     const n = Number(s)
     return Number.isFinite(n) && n >= 0 ? n : fallback
+  }
+
+  function parseNumSigned(s: string, fallback: number): number {
+    if (s === '') return fallback
+    const n = Number(s)
+    return Number.isFinite(n) ? n : fallback
   }
 
   const configSp = configToSearchParams(buildConfig())
@@ -118,6 +127,13 @@ export default function ConfiguratorConfigPage() {
 
   const setSitePage = (index: number, value: string) => {
     setSitePages((prev) => {
+      const next = [...prev]
+      next[index] = value
+      return next
+    })
+  }
+  const setTotalDaysForType = (index: number, value: string) => {
+    setTotalDaysBySiteType((prev) => {
       const next = [...prev]
       next[index] = value
       return next
@@ -241,7 +257,15 @@ export default function ConfiguratorConfigPage() {
                 <div key={i} className="flex items-center gap-3">
                   <span className="text-sm opacity-70 w-48">{name}</span>
                   <NumInput value={sitePages[i] ?? ''} onChange={(v) => setSitePage(i, v)} />
-                  <span className="text-sm opacity-50">pages → affects Research, Design, Wireframes, Dev, QA</span>
+                  <span className="text-sm opacity-50">pages</span>
+                </div>
+              ))}
+              <div className="text-sm opacity-70 mb-1 mt-4">Total work days per site type</div>
+              {SITE_NAMES.map((name, i) => (
+                <div key={`days-${i}`} className="flex items-center gap-3">
+                  <span className="text-sm opacity-70 w-48">{name}</span>
+                  <NumInput value={totalDaysBySiteType[i] ?? ''} onChange={(v) => setTotalDaysForType(i, v)} />
+                  <span className="text-sm opacity-50">days (Research +2, rest distributed)</span>
                 </div>
               ))}
               <div className="flex items-center gap-3 mt-4">

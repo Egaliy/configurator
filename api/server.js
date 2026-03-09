@@ -61,6 +61,8 @@ function formatLead(body) {
     `<b>Name:</b> ${d.name || '—'}`,
     `<b>Email:</b> ${d.email || '—'}`,
     `<b>Preferred:</b> ${d.preferred_contact || '—'}`,
+    ...(d.project_description ? [`<b>Project:</b> ${(d.project_description || '').slice(0, 300)}${(d.project_description || '').length > 300 ? '…' : ''}`] : []),
+    ...(d.project_site_url ? [`<b>Site:</b> ${d.project_site_url}`] : []),
     `<b>Submitted:</b> ${d.submitted_at || new Date().toISOString()}`,
     '',
     `<b>Goal:</b> ${d.goal || '—'}`,

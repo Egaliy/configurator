@@ -14,6 +14,11 @@ interface StagesTableProps {
   uploadContent: boolean
 }
 
+function formatStageDays(days: number): string {
+  if (days % 1 === 0) return String(days)
+  return days.toFixed(2).replace(/\.?0+$/, '') // 0.25 → "0.25", 1.5 → "1.5"
+}
+
 export default function StagesTable({ stageDays, originalDays, likeThat, uploadContent }: StagesTableProps) {
   const stages = [
     { 
@@ -75,11 +80,11 @@ export default function StagesTable({ stageDays, originalDays, likeThat, uploadC
               <td className="py-3 md:py-4 px-4 md:px-6 text-sm md:text-base text-right tracking-tighter">
                 {stage.reduced ? (
                   <span>
-                    <span className="line-through opacity-50 text-white/50">{stage.originalDays}</span>
-                    <span className="ml-2">{stage.days}</span>
+                    <span className="line-through opacity-50 text-white/50">{formatStageDays(stage.originalDays)}</span>
+                    <span className="ml-2">{formatStageDays(stage.days)}</span>
                   </span>
                 ) : (
-                  stage.days
+                  formatStageDays(stage.days)
                 )}
               </td>
             </tr>

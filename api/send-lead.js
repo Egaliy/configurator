@@ -31,6 +31,8 @@ function formatLead(body) {
     `<b>Name:</b> ${d.name || '—'}`,
     `<b>Email:</b> ${d.email || '—'}`,
     `<b>Preferred:</b> ${d.preferred_contact || '—'}`,
+    ...(d.project_description ? [`<b>Project:</b> ${(d.project_description || '').slice(0, 300)}${(d.project_description || '').length > 300 ? '…' : ''}`] : []),
+    ...(d.project_site_url ? [`<b>Site:</b> ${d.project_site_url}`] : []),
     `<b>Submitted:</b> ${d.submitted_at || new Date().toISOString()}`,
     '',
     `<b>Goal:</b> ${d.goal || '—'}`,
@@ -85,13 +87,13 @@ export default async function handler(req, res) {
 
   const text = formatLead(data)
 
-  if (chatIds.length === 0) {
-    res.status(200).json({ ok: true })
+  if (!botToken) {
+    res.status(200).json({ ok: false, error: 'TELEGRAM_BOT_TOKEN not set in Vercel' })
     return
   }
 
-  if (!botToken) {
-    res.status(200).json({ ok: true })
+  if (chatIds.length === 0) {
+    res.status(200).json({ ok: false, error: 'TELEGRAM_AUTHORIZED_CHAT_IDS not set in Vercel' })
     return
   }
 

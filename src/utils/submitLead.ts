@@ -13,6 +13,8 @@ export interface LeadPayload {
   totalDays: number
   totalCost: number
   preferredContact: string
+  projectDescription?: string
+  projectSiteUrl?: string
   fullSummary: string
 }
 
@@ -33,6 +35,8 @@ export async function submitLead(name: string, email: string, payload: LeadPaylo
     reduce_options: payload.reduceOptions.length ? payload.reduceOptions.join('; ') : '—',
     addons: payload.addons.length ? payload.addons.join('; ') : '—',
     preferred_contact: payload.preferredContact,
+    project_description: payload.projectDescription ?? '',
+    project_site_url: payload.projectSiteUrl ?? '',
     _full_summary: payload.fullSummary,
   }
 
@@ -43,8 +47,9 @@ export async function submitLead(name: string, email: string, payload: LeadPaylo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) return { ok: false, error: (data as { error?: string }).error || res.statusText }
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
+      if (!res.ok) return { ok: false, error: data.error || res.statusText }
+      if (data.ok === false) return { ok: false, error: data.error || 'Send failed' }
       return { ok: true }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
@@ -54,7 +59,7 @@ export async function submitLead(name: string, email: string, payload: LeadPaylo
 
   if (!FORMSPREE_ID?.trim()) {
     console.warn('VITE_SEND_LEAD_API_URL and VITE_FORMSPREE_ID not set — lead will not be sent.')
-    return { ok: true }
+    return { ok: false, error: 'Lead endpoint not configured' }
   }
 
   const formspreeBody: Record<string, string | number> = { ...body }
