@@ -1,6 +1,6 @@
 /**
  * Single config for configurator timeline and cost.
- * Params can be overridden via URL (?rate_reduce=..., addon_research=..., etc.).
+ * Public page uses `defaultConfig` (not URL). Admin `/config` passes overrides via sessionStorage.
  */
 
 /** One day = $1300 */
@@ -134,6 +134,81 @@ export function configToSearchParams(c: ConfiguratorConfig): URLSearchParams {
   return sp
 }
 
-/** Default query string for the main page. When user opens / without params, redirect to this. */
-export const DEFAULT_HOMEPAGE_QUERY =
-  'step=1&preset=1&v=1&rate_reduce=1300&rate_increase=1300&pages=1,4,7,22&total_days=3,6,15,27&base_days=2.5&like_days=1&upload_days=1&sub_pct=90&upfront_pct=90&link_pct=95&addon_research=0&addon_copywriting=0&addon_publication=-500&addon_installments=3900'
+export interface ConfiguratorUiPrefs {
+  preset: '0' | '1'
+  step3Version: 'reduce' | 'increase'
+  theme: 'light' | 'dark'
+  dayRateOverride?: number
+}
+
+/** Default UI for the public homepage (formerly in DEFAULT_HOMEPAGE_QUERY). */
+export const DEFAULT_UI_PREFS: ConfiguratorUiPrefs = {
+  preset: '1',
+  step3Version: 'increase',
+  theme: 'dark',
+}
+
+const CONFIG_OVERRIDE_SESSION_KEY = 'configurator_config_override'
+const CONFIG_UI_SESSION_KEY = 'configurator_ui_prefs'
+const CONFIG_INITIAL_STEP_SESSION_KEY = 'configurator_initial_step'
+
+export function saveConfiguratorLaunch(config: ConfiguratorConfig, ui: ConfiguratorUiPrefs): void {
+  if (typeof sessionStorage === 'undefined') return
+  sessionStorage.setItem(CONFIG_OVERRIDE_SESSION_KEY, JSON.stringify(config))
+  sessionStorage.setItem(CONFIG_UI_SESSION_KEY, JSON.stringify(ui))
+}
+
+export function consumeConfiguratorLaunch(): { config: ConfiguratorConfig; ui: ConfiguratorUiPrefs } | null {
+  if (typeof sessionStorage === 'undefined') return null
+  const rawConfig = sessionStorage.getItem(CONFIG_OVERRIDE_SESSION_KEY)
+  const rawUi = sessionStorage.getItem(CONFIG_UI_SESSION_KEY)
+  sessionStorage.removeItem(CONFIG_OVERRIDE_SESSION_KEY)
+  sessionStorage.removeItem(CONFIG_UI_SESSION_KEY)
+  if (!rawConfig && !rawUi) return null
+  try {
+    const config = rawConfig
+      ? ({ ...defaultConfig, ...JSON.parse(rawConfig) } as ConfiguratorConfig)
+      : defaultConfig
+    const ui: ConfiguratorUiPrefs = rawUi ? JSON.parse(rawUi) : DEFAULT_UI_PREFS
+    return { config, ui }
+  } catch {
+    return null
+  }
+}
+
+export function setInitialStepSession(step: number): void {
+  if (typeof sessionStorage === 'undefined') return
+  sessionStorage.setItem(CONFIG_INITIAL_STEP_SESSION_KEY, String(step))
+}
+
+export function consumeInitialStepSession(): number | null {
+  if (typeof sessionStorage === 'undefined') return null
+  const raw = sessionStorage.getItem(CONFIG_INITIAL_STEP_SESSION_KEY)
+  sessionStorage.removeItem(CONFIG_INITIAL_STEP_SESSION_KEY)
+  if (!raw) return null
+  const n = parseInt(raw, 10)
+  return n >= 1 && n <= 4 ? n : null
+}
+
+function presetToSiteIndex(preset: '0' | '1'): number {
+  return preset === '0' ? 0 : 3
+}
+
+function presetToAnimation(preset: '0' | '1'): number {
+  return preset === '0' ? 1 : 4
+}
+
+export function initialSiteTypeIndex(ui: ConfiguratorUiPrefs = DEFAULT_UI_PREFS): number {
+  return presetToSiteIndex(ui.preset)
+}
+
+export function initialAnimationLevel(ui: ConfiguratorUiPrefs = DEFAULT_UI_PREFS): number {
+  return presetToAnimation(ui.preset)
+}
+
+/** Read step from URL once (legacy bookmarks), then strip query from the address bar. */
+export function readInitialStepFromUrl(): number {
+  if (typeof window === 'undefined') return 1
+  const n = parseInt(new URLSearchParams(window.location.search).get('step') || '1', 10)
+  return n >= 1 && n <= 4 ? n : 1
+}

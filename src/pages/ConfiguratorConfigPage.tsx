@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import {
   defaultConfig,
-  configToSearchParams,
   DEFAULT_RATE_REDUCE,
   DEFAULT_RATE_INCREASE,
   DEFAULT_SITE_PAGES,
@@ -15,6 +14,7 @@ import {
   DEFAULT_ADDON_PRICES,
   type ConfiguratorConfig,
 } from '../configuratorConfig'
+import { buildPackedConfiguratorUrl } from '../utils/configPack'
 
 type Preset = '0' | '1'
 type Version = '0' | '1'
@@ -105,20 +105,24 @@ export default function ConfiguratorConfigPage() {
     return Number.isFinite(n) ? n : fallback
   }
 
-  const configSp = configToSearchParams(buildConfig())
-  const search = new URLSearchParams()
-  search.set('step', '1')
-  search.set('preset', preset)
-  if (version === '1') search.set('v', '1')
-  if (theme === 'light') search.set('theme', 'light')
-  if (rateInput !== '' && !Number.isNaN(Number(rateInput)) && Number(rateInput) > 0) {
-    search.set('rate', String(Math.round(Number(rateInput))))
-  }
-  configSp.forEach((v, k) => search.set(k, v))
-  const configuratorUrl = `/?${search.toString()}`
-
   const defaultRate = version === '1' ? parseNum(rateIncrease, DEFAULT_RATE_INCREASE) : parseNum(rateReduce, DEFAULT_RATE_REDUCE)
   const rateNum = rateInput !== '' && !Number.isNaN(Number(rateInput)) && Number(rateInput) > 0 ? Math.round(Number(rateInput)) : null
+
+  const launchUi = {
+    preset,
+    step3Version: version === '1' ? ('increase' as const) : ('reduce' as const),
+    theme,
+    dayRateOverride: rateNum ?? undefined,
+  }
+
+  const packedConfiguratorUrl =
+    typeof window !== 'undefined'
+      ? buildPackedConfiguratorUrl(window.location.origin, buildConfig(), launchUi, 1)
+      : '/?k=…'
+
+  const openConfigurator = () => {
+    window.open(packedConfiguratorUrl, '_blank', 'noopener,noreferrer')
+  }
   const ratePerHour = rateNum != null ? Math.round(rateNum / 8) : null
   const changeRateBy = (delta: number) => {
     const base = rateNum ?? defaultRate
@@ -321,16 +325,18 @@ export default function ConfiguratorConfigPage() {
           </div>
 
           <div className="border-t border-white/10 pt-8">
-            <a
-              href={configuratorUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={openConfigurator}
               className="block w-full py-4 px-6 bg-white text-black text-center font-medium rounded-xl hover:bg-neutral-100 active:bg-neutral-200 transition-colors tracking-tighter"
             >
               Open configurator
-            </a>
+            </button>
             <p className="text-xs opacity-50 mt-3 tracking-tighter break-all">
-              {configuratorUrl}
+              {packedConfiguratorUrl}
+              <span className="block mt-1 opacity-70">
+                One short encrypted param (<code className="opacity-80">k</code>). Values cannot be lowered via the URL.
+              </span>
             </p>
           </div>
         </div>

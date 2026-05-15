@@ -5,7 +5,13 @@ import ConfiguratorPage from './pages/ConfiguratorPage'
 import ConfiguratorConfigPage from './pages/ConfiguratorConfigPage'
 import ProjectsPage from './pages/ProjectsPage'
 import LikeThatPage from './pages/LikeThatPage'
-import { DEFAULT_HOMEPAGE_QUERY } from './configuratorConfig'
+import {
+  defaultConfig,
+  DEFAULT_UI_PREFS,
+  saveConfiguratorLaunch,
+  setInitialStepSession,
+  type ConfiguratorUiPrefs,
+} from './configuratorConfig'
 
 const FB_PIXEL_ID = import.meta.env.VITE_FB_PIXEL_ID as string | undefined
 
@@ -29,23 +35,20 @@ function useFacebookPixel() {
   }, [])
 }
 
-/** Redirect from old paths to single URL with ?step=N (preserve query). */
-function RedirectToStep({ step }: { step: number }) {
+/** Redirect legacy paths to / (step and UI prefs via sessionStorage, no URL params). */
+function RedirectToStep({ step, ui }: { step: number; ui?: Partial<ConfiguratorUiPrefs> }) {
   const location = useLocation()
-  const sp = new URLSearchParams(location.search)
-  sp.set('step', String(step))
-  if (step === 3 && location.pathname === '/increase') sp.set('v', '1')
-  return <Navigate to={`/?${sp.toString()}`} replace />
-}
-
-/** Main page: if opened without params, redirect to default homepage settings. */
-function ConfiguratorPageWithDefaults() {
-  const location = useLocation()
-  const hasQuery = location.search.length > 1 && location.search.startsWith('?')
-  if (location.pathname === '/' && !hasQuery) {
-    return <Navigate to={`/?${DEFAULT_HOMEPAGE_QUERY}`} replace />
+  if (typeof window !== 'undefined') {
+    setInitialStepSession(step)
+    if (ui) {
+      saveConfiguratorLaunch(defaultConfig, { ...DEFAULT_UI_PREFS, ...ui })
+    } else if (location.pathname === '/increase') {
+      saveConfiguratorLaunch(defaultConfig, { ...DEFAULT_UI_PREFS, step3Version: 'increase' })
+    } else if (location.pathname === '/reduce') {
+      saveConfiguratorLaunch(defaultConfig, { ...DEFAULT_UI_PREFS, step3Version: 'reduce' })
+    }
   }
-  return <ConfiguratorPage />
+  return <Navigate to="/" replace />
 }
 
 function App() {
@@ -54,11 +57,11 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<Layout />}>
-          <Route path="/" element={<ConfiguratorPageWithDefaults />} />
+          <Route path="/" element={<ConfiguratorPage />} />
           <Route path="config" element={<ConfiguratorConfigPage />} />
           <Route path="animation" element={<RedirectToStep step={2} />} />
-          <Route path="reduce" element={<RedirectToStep step={3} />} />
-          <Route path="increase" element={<RedirectToStep step={3} />} />
+          <Route path="reduce" element={<RedirectToStep step={3} ui={{ step3Version: 'reduce' }} />} />
+          <Route path="increase" element={<RedirectToStep step={3} ui={{ step3Version: 'increase' }} />} />
           <Route path="summary" element={<RedirectToStep step={4} />} />
           <Route path="request" element={<RedirectToStep step={4} />} />
           <Route path="projects" element={<ProjectsPage />} />

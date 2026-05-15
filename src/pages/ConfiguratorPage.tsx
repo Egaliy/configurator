@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import StagesTable from '../components/StagesTable'
 import Configurator from '../components/Configurator'
@@ -10,9 +10,24 @@ import {
   trackConfiguratorOption,
   trackConfiguratorAddon,
   trackConfiguratorLead,
-  trackConfiguratorBookCall,
 } from '../utils/facebookPixel'
-import { parseConfigFromSearchParams, DEFAULT_TOTAL_DAYS_BY_SITE_TYPE } from '../configuratorConfig'
+import {
+  defaultConfig,
+  DEFAULT_UI_PREFS,
+  consumeConfiguratorLaunch,
+  consumeInitialStepSession,
+  readInitialStepFromUrl,
+  initialSiteTypeIndex,
+  initialAnimationLevel,
+  DEFAULT_TOTAL_DAYS_BY_SITE_TYPE,
+  type ConfiguratorConfig,
+  type ConfiguratorUiPrefs,
+} from '../configuratorConfig'
+import {
+  CONFIG_PACK_PARAM,
+  unpackConfiguratorLaunch,
+  hasLegacyConfigParams,
+} from '../utils/configPack'
 import { submitLead, type LeadPayload } from '../utils/submitLead'
 
 interface StageDays {
@@ -167,39 +182,74 @@ function applyAnimationToStageDaysForCost(days: StageDays, animationLevel: numbe
   }
 }
 
-/** Step 3 variant for A/B: reduce = lower cost, increase = add-ons */
-function isStep3Increase(v: string | null): boolean {
-  return v === '1'
+function readLaunchOnce(): {
+  config: ConfiguratorConfig
+  ui: ConfiguratorUiPrefs
+  step: number
+  packToken: string | null
+} {
+  if (typeof window !== 'undefined') {
+    const sp = new URLSearchParams(window.location.search)
+    const token = sp.get(CONFIG_PACK_PARAM)
+    if (token) {
+      const packed = unpackConfiguratorLaunch(token)
+      if (packed) {
+        return { ...packed, packToken: token }
+      }
+    }
+  }
+  const launch = consumeConfiguratorLaunch()
+  const ui = launch?.ui ?? DEFAULT_UI_PREFS
+  const config = launch?.config ?? defaultConfig
+  const fromSession = consumeInitialStepSession()
+  const step = fromSession ?? readInitialStepFromUrl()
+  return { config, ui, step, packToken: null }
 }
 
 /**
- * Single URL: everything on /. Steps change via ?step=1|2|3|4.
- * Params: step, v=0|1 (step 3), preset=0|1 (preselection). Math from ?rate_reduce=, addon_*=, etc.
+ * Public configurator: pricing math is fixed in code (not URL).
+ * Step navigation is in React state; address bar stays clean (/).
  */
-
 export default function ConfiguratorPage() {
+  const launchRef = useRef(readLaunchOnce())
   const [searchParams, setSearchParams] = useSearchParams()
-  const config = useMemo(() => parseConfigFromSearchParams(searchParams), [searchParams])
-  /** Step from URL (1–4) */
-  const step = Math.min(4, Math.max(1, parseInt(searchParams.get('step') || '1', 10) || 1)) as 1 | 2 | 3 | 4
-  /** Step 3 variant: v=1 → increase, else reduce */
-  const step3Version: 'reduce' | 'increase' = searchParams.get('v') === '1' ? 'increase' : 'reduce'
-  /** Light or dark theme (theme=light in URL) */
-  const theme = searchParams.get('theme') === 'light' ? 'light' : 'dark'
-  /** Rate per day: from URL ?rate= or default for step 3 variant */
+  const [config] = useState<ConfiguratorConfig>(() => launchRef.current.config)
+  const [step3Version] = useState<'reduce' | 'increase'>(() => launchRef.current.ui.step3Version)
+  const [theme] = useState<'light' | 'dark'>(() => launchRef.current.ui.theme)
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(() => launchRef.current.step as 1 | 2 | 3 | 4)
+
   const defaultDayRate = step3Version === 'reduce' ? config.rateReduce : config.rateIncrease
-  const rateParam = searchParams.get('rate')
-  const dayRate = (rateParam != null && rateParam !== '' && !Number.isNaN(Number(rateParam)) && Number(rateParam) > 0)
-    ? Math.round(Number(rateParam))
-    : defaultDayRate
+  const dayRate =
+    launchRef.current.ui.dayRateOverride != null && launchRef.current.ui.dayRateOverride > 0
+      ? Math.round(launchRef.current.ui.dayRateOverride)
+      : defaultDayRate
+
+  const packToken = launchRef.current.packToken
+
+  const syncUrlParams = (token: string | null) => {
+    if (token) {
+      const next = new URLSearchParams()
+      next.set(CONFIG_PACK_PARAM, token)
+      if (searchParams.get(CONFIG_PACK_PARAM) !== token || hasLegacyConfigParams(searchParams)) {
+        setSearchParams(next, { replace: true })
+      }
+      return
+    }
+    if (searchParams.toString()) {
+      setSearchParams({}, { replace: true })
+    }
+  }
 
   const goToStep = (n: number) => {
-    const toStep = Math.min(4, Math.max(1, n))
+    const toStep = Math.min(4, Math.max(1, n)) as 1 | 2 | 3 | 4
     trackConfiguratorNavigate(toStep > step ? 'next' : 'back', step, toStep)
-    const next = new URLSearchParams(searchParams)
-    next.set('step', String(toStep))
-    setSearchParams(next, { replace: true })
+    setStep(toStep)
+    syncUrlParams(packToken)
   }
+
+  useEffect(() => {
+    syncUrlParams(packToken)
+  }, [searchParams, setSearchParams, packToken])
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -209,24 +259,9 @@ export default function ConfiguratorPage() {
     trackConfiguratorStep(step)
   }, [step])
 
-  // URL params: v=0|1 (step 3), preset=0|1 (button preselection)
-  const getInitialPreset = () => {
-    if (typeof window === 'undefined') return null
-    return new URLSearchParams(window.location.search).get('preset')
-  }
-  const [siteTypeIndex, setSiteTypeIndex] = useState(() => {
-    const p = getInitialPreset()
-    if (p === '0') return 0   // cheapest — Promo Site (1 page)
-    if (p === '1') return 3   // most expensive — Enterprise (15–30 pages)
-    return 3
-  })
+  const [siteTypeIndex, setSiteTypeIndex] = useState(() => initialSiteTypeIndex(launchRef.current.ui))
   const pages = config.sitePages[siteTypeIndex] ?? SITE_TYPES[siteTypeIndex].pages
-  const [animation, setAnimation] = useState(() => {
-    const p = getInitialPreset()
-    if (p === '0') return 1   // lightest/cheapest animation — Basic
-    if (p === '1') return 4   // most expensive animation — Immersive
-    return 3
-  })
+  const [animation, setAnimation] = useState(() => initialAnimationLevel(launchRef.current.ui))
   const [likeThat, setLikeThat] = useState(false)
   const [uploadContent, setUploadContent] = useState(false)
   const [subscription, setSubscription] = useState(false)
@@ -238,36 +273,6 @@ export default function ConfiguratorPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [selectedAddonIds, setSelectedAddonIds] = useState<Set<string>>(() => new Set(['research', 'copywriting']))
-  /** Call date/time (step 4) */
-  const callDateOptions = useMemo(() => {
-    const out: { value: string; label: string }[] = []
-    const today = new Date()
-    for (let i = 0; i < 14; i++) {
-      const d = new Date(today)
-      d.setDate(d.getDate() + i)
-      out.push({
-        value: d.toISOString().slice(0, 10),
-        label: d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }),
-      })
-    }
-    return out
-  }, [])
-  const callTimeOptions = useMemo(() => {
-    const out: { value: string; label: string }[] = []
-    for (let h = 9; h <= 18; h++) {
-      for (const m of [0, 30]) {
-        if (h === 18 && m === 30) break
-        out.push({
-          value: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
-          label: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
-        })
-      }
-    }
-    return out
-  }, [])
-  const [callDate, setCallDate] = useState(() => callDateOptions[0]?.value ?? '')
-  const [callTime, setCallTime] = useState(() => callTimeOptions[0]?.value ?? '')
-  /** Request mode on step 4: email (default) or book call */
 
   const getTotalDaysForType = (index: number) => config.totalDaysBySiteType?.[index] ?? DEFAULT_TOTAL_DAYS_BY_SITE_TYPE[index]
   const [originalDays, setOriginalDays] = useState<StageDays>(() => stageDaysFromTotal(DEFAULT_TOTAL_DAYS_BY_SITE_TYPE[siteTypeIndex]))
@@ -589,16 +594,16 @@ export default function ConfiguratorPage() {
           <div className="flex flex-col min-h-0 flex-1 lg:h-full w-full px-6 lg:px-12 lg:pl-10 py-6 lg:py-12 order-2 lg:order-2 overflow-y-auto">
             <div className="mb-8">
               <h1 className="text-3xl md:text-4xl lg:text-5xl font-normal mb-4 heading-large">
-                {step === 3 && (isStep3Increase(searchParams.get('v')) ? 'Add options' : 'Reduce cost')}
+                {step === 3 && (step3Version === 'increase' ? 'Add options' : 'Reduce cost')}
                 {step === 4 && 'Leave a request'}
               </h1>
               <p className="text-base md:text-lg opacity-60 tracking-tighter">
-                {step === 3 && (isStep3Increase(searchParams.get('v')) ? 'Add options to increase the value and scope of your project' : 'Choose options to lower the project cost')}
+                {step === 3 && (step3Version === 'increase' ? 'Add options to increase the value and scope of your project' : 'Choose options to lower the project cost')}
                 {step === 4 && 'Send your request and we will contact you to discuss the project'}
               </p>
             </div>
             {stepIndicator}
-            {step === 3 && !isStep3Increase(searchParams.get('v')) && (
+            {step === 3 && step3Version === 'reduce' && (
               <div className="space-y-8">
                 <Configurator
                   likeThat={likeThat}
@@ -661,7 +666,7 @@ export default function ConfiguratorPage() {
               </div>
             )}
 
-            {step === 3 && isStep3Increase(searchParams.get('v')) && (
+            {step === 3 && step3Version === 'increase' && (
               <div className="space-y-8">
                 <p className="text-base md:text-lg opacity-60 tracking-tighter">
                   Add options to increase the value and scope of your project
@@ -777,12 +782,11 @@ export default function ConfiguratorPage() {
                       const p = config.addonPrices[a.id] ?? a.price
                       return p >= 0 ? `${a.title} +$${p.toLocaleString()}` : `${a.title} −$${Math.abs(p).toLocaleString()}`
                     })
-                    const preferredContact = `Book call: ${callDate} ${callTime}`
+                    const preferredContact = 'Email'
                     const fullSummary = [
-                      `Date: ${new Date().toLocaleString()}`,
+                      `Submitted: ${new Date().toLocaleString()}`,
                       `Name: ${name}`,
                       `Email: ${email}`,
-                      `Preferred: ${preferredContact}`,
                       projectDescription ? `Project: ${projectDescription}` : null,
                       `Goal: ${goal}`,
                     ].filter(Boolean).concat([
@@ -810,7 +814,6 @@ export default function ConfiguratorPage() {
                       return
                     }
                     trackConfiguratorLead({ total_days: effectiveTotalDays, total_cost: Math.round(summaryTotalCost) })
-                    trackConfiguratorBookCall()
                     setRequestSubmitted(true)
                   }}
                   className="flex flex-col"
@@ -849,33 +852,6 @@ export default function ConfiguratorPage() {
                       />
                     </label>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                        <label className="block min-w-0">
-                          <span className="text-sm opacity-60 tracking-tighter block mb-1.5">Call date</span>
-                          <input
-                            type="date"
-                            value={callDate}
-                            min={callDateOptions[0]?.value}
-                            max={callDateOptions[callDateOptions.length - 1]?.value}
-                            onChange={(e) => setCallDate(e.target.value)}
-                            className="w-full px-4 py-3 bg-white/5 rounded-lg text-white tracking-tighter border border-white/10 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent transition-colors [color-scheme:dark]"
-                          />
-                        </label>
-                        <label className="block min-w-0">
-                          <span className="text-sm opacity-60 tracking-tighter block mb-1.5">Call time</span>
-                          <select
-                            value={callTime}
-                            onChange={(e) => setCallTime(e.target.value)}
-                            className="w-full px-4 py-3 bg-white/5 rounded-lg text-white tracking-tighter border border-white/10 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent transition-colors"
-                          >
-                            {callTimeOptions.map((opt) => (
-                              <option key={opt.value} value={opt.value} className="bg-neutral-900 text-white">
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
                   </div>
 
                   <div className="flex-shrink-0 pt-6 border-t border-white/10 space-y-2">
