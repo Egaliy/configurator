@@ -244,3 +244,54 @@
     filter: brightness(0);
   }
 }
+
+/* Mobile: fixed price bar at bottom with fade-to-transparent gradient */
+.configurator-mobile-scroll {
+  @apply max-lg:pb-[13rem];
+}
+
+.configurator-mobile-price-bar {
+  @apply space-y-2 max-lg:fixed max-lg:bottom-0 max-lg:left-0 max-lg:right-0 max-lg:z-40 max-lg:px-6 max-lg:pt-16;
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  background: linear-gradient(
+    to top,
+    #000 0%,
+    #000 38%,
+    rgba(0, 0, 0, 0.94) 58%,
+    rgba(0, 0, 0, 0.72) 78%,
+    transparent 100%
+  );
+}
+
+@media (min-width: 1024px) {
+  .configurator-mobile-price-bar {
+    position: static;
+    z-index: auto;
+    padding: 0;
+    margin-top: 2.5rem;
+    padding-top: 2rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    background: none;
+  }
+}
+
+.configurator-mobile-price-bar__detail-panel {
+  @apply max-lg:max-h-[32vh] max-lg:overflow-y-auto;
+}
+
+/* Gallery preview: blurred dim glow + sharp fit foreground */
+.gallery-preview-bg,
+.gallery-preview-fg {
+  pointer-events: none;
+}
+
+.gallery-preview-bg {
+  filter: blur(40px) brightness(0.45) saturate(1.15);
+  opacity: 0.85;
+  transform: scale(1.12);
+  transform-origin: center;
+}
+
+.gallery-preview-fg {
+  z-index: 1;
+}

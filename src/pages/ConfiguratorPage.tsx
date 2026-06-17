@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import StagesTable from '../components/StagesTable'
 import Configurator from '../components/Configurator'
@@ -28,6 +28,11 @@ import {
   unpackConfiguratorLaunch,
   hasLegacyConfigParams,
 } from '../utils/configPack'
+import {
+  getGalleryPreviewSrc,
+  getAllGalleryVideoSrcs,
+  preloadGalleryVideos,
+} from '../configuratorGallery'
 import { submitLead, type LeadPayload } from '../utils/submitLead'
 
 interface StageDays {
@@ -51,35 +56,90 @@ function getAnimationLabel(value: number): string {
   return level ? level.title : 'Animation'
 }
 
-/** Gallery: images in public/imgs/animation/ level-1-1.gif … level-5-5.gif */
-function AnimationGallerySlot({ level, index, fill16x9 }: { level: number; index: number; fill16x9?: boolean }) {
-  const src = `/imgs/animation/level-${level}-${index}.gif`
-  return (
-    <div className={`overflow-hidden bg-white/5 relative ${fill16x9 ? 'w-full h-full' : 'aspect-square rounded-lg border border-white/10'}`}>
-      <img
-        src={src}
-        alt={`${getAnimationLabel(level)} example ${index}`}
-        className="w-full h-full object-cover"
-        onError={(e) => {
-          const el = e.currentTarget
-          el.style.display = 'none'
-          const placeholder = el.nextElementSibling as HTMLElement
-          if (placeholder) placeholder.classList.remove('hidden')
-        }}
-      />
-      <div className="hidden absolute inset-0 flex items-center justify-center text-white/30 text-xs tracking-tighter">
-        GIF
-      </div>
-    </div>
-  )
-}
-
 const SITE_TYPES = [
   { title: 'Promo Site', subtitle: '1 page website', pages: 1, icon: 'Promo.svg' },
   { title: 'SaaS Product Site', subtitle: '3-5 page website', pages: 4, icon: 'SaaS.svg' },
   { title: 'Corporate Site', subtitle: '5-9 page website', pages: 7, icon: 'Corporate.svg' },
   { title: 'Enterprise Site', subtitle: '15-30 page website', pages: 22, icon: 'Enterprise.svg' },
 ] as const
+
+const GALLERY_VIDEO_SRCS = getAllGalleryVideoSrcs()
+
+function PreviewGallery({
+  siteTypeIndex,
+  animation,
+  fill16x9,
+}: {
+  siteTypeIndex: number
+  animation: number
+  fill16x9?: boolean
+}) {
+  const activeSrc = getGalleryPreviewSrc(siteTypeIndex, animation)
+  const site = SITE_TYPES[siteTypeIndex] ?? SITE_TYPES[0]
+  const animLabel = getAnimationLabel(animation)
+  const videoRefs = useRef<Map<string, HTMLVideoElement[]>>(new Map())
+
+  const registerVideo = useCallback((src: string, el: HTMLVideoElement | null) => {
+    if (!el) return
+    const list = videoRefs.current.get(src) ?? []
+    if (!list.includes(el)) list.push(el)
+    videoRefs.current.set(src, list)
+  }, [])
+
+  useEffect(() => {
+    for (const [src, videos] of videoRefs.current) {
+      const isActive = src === activeSrc
+      for (const video of videos) {
+        if (isActive) {
+          video.currentTime = 0
+          void video.play().catch(() => {})
+        } else {
+          video.pause()
+        }
+      }
+    }
+  }, [activeSrc])
+
+  return (
+    <div
+      className={`overflow-hidden bg-white/5 relative ${fill16x9 ? 'w-full h-full' : 'aspect-square rounded-lg border border-white/10'}`}
+      role="img"
+      aria-label={`${site.title} — ${animLabel}`}
+    >
+      {GALLERY_VIDEO_SRCS.map((src) => {
+        const isActive = src === activeSrc
+        return (
+          <div
+            key={src}
+            aria-hidden
+            className={`absolute inset-0 transition-opacity duration-300 ${
+              isActive ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+            }`}
+          >
+            <video
+              ref={(el) => registerVideo(src, el)}
+              src={src}
+              muted
+              loop
+              playsInline
+              preload="auto"
+              className="gallery-preview-bg absolute inset-0 w-full h-full object-cover"
+            />
+            <video
+              ref={(el) => registerVideo(src, el)}
+              src={src}
+              muted
+              loop
+              playsInline
+              preload="auto"
+              className="gallery-preview-fg absolute inset-0 w-full h-full object-contain object-center"
+            />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 const ADDONS = [
   { id: 'research', price: 0, title: 'Extensive Research', description: '+2 days — we will interview up to 10 stakeholders', badge: true, icon: 'Research.svg' },
@@ -250,6 +310,10 @@ export default function ConfiguratorPage() {
   useEffect(() => {
     syncUrlParams(packToken)
   }, [searchParams, setSearchParams, packToken])
+
+  useEffect(() => {
+    preloadGalleryVideos()
+  }, [])
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -437,7 +501,7 @@ export default function ConfiguratorPage() {
           <div className="flex flex-col h-[300px] lg:h-full w-full min-h-0 flex-shrink-0 lg:flex-shrink bg-black order-1 lg:order-1">
             <div className="flex-1 min-h-0 flex flex-col p-2 lg:p-4">
               <div className="flex-1 min-h-0 relative rounded-lg lg:rounded-xl overflow-hidden bg-white/5 border border-white/10 w-full h-full">
-                <AnimationGallerySlot level={animation} index={1} fill16x9 />
+                <PreviewGallery siteTypeIndex={siteTypeIndex} animation={animation} fill16x9 />
               </div>
             </div>
           </div>
@@ -587,7 +651,7 @@ export default function ConfiguratorPage() {
           <div className="flex flex-col h-[300px] lg:h-full w-full min-h-0 flex-shrink-0 lg:flex-shrink bg-black order-1 lg:order-1">
             <div className="flex-1 min-h-0 flex flex-col p-2 lg:p-4">
               <div className="flex-1 min-h-0 relative rounded-lg lg:rounded-xl overflow-hidden bg-white/5 border border-white/10 w-full h-full">
-                <AnimationGallerySlot level={animation} index={1} fill16x9 />
+                <PreviewGallery siteTypeIndex={siteTypeIndex} animation={animation} fill16x9 />
               </div>
             </div>
           </div>
